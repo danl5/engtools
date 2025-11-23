@@ -21,6 +21,7 @@ export default function App() {
       <Box sx={{ position: 'relative', minHeight: '100vh', background: 'linear-gradient(135deg, #1e1b4b 0%, #0f172a 40%, #7c3aed 100%)' }}>
         <AppBar position="static" sx={{ background: 'linear-gradient(90deg, #7c3aed 0%, #06b6d4 100%)' }}>
           <Toolbar>
+            <img src="/favicon.svg" alt="EngTools" width="24" height="24" style={{ marginRight: 8 }} />
             <Typography variant="h6" sx={{ fontWeight: 700 }}>EngTools</Typography>
           </Toolbar>
         </AppBar>

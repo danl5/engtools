@@ -1,4 +1,5 @@
 import { Container, Typography, Grid, TextField, Button, Alert, Card, CardContent, FormControl, InputLabel, Select, MenuItem } from '@mui/material'
+import { Link as LinkIcon, Code as CodeIcon, DataObject, SyncAlt, AccessTime } from '@mui/icons-material'
 import { useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import api from '../api'
@@ -168,7 +169,7 @@ export default function Tools() {
         <Grid item xs={12} md={6}>
           <Card sx={{ bgcolor: 'rgba(255,255,255,0.06)', transition: 'transform .2s', '&:hover': { transform: 'translateY(-4px)' } }}>
             <CardContent>
-              <Typography variant="h6">URL Encode/Decode</Typography>
+              <Typography variant="h6"><LinkIcon sx={{ mr:1, verticalAlign: 'middle' }} />URL Encode/Decode</Typography>
               <TextField sx={{ mt:1 }} label="Text/URL" value={urlText} onChange={e=>setUrlText(e.target.value)} fullWidth multiline rows={3} />
               <Button sx={{ mt:1, mr:1 }} variant="contained" onClick={urlDoEncode}>Encode</Button>
               <TextField sx={{ mt:2 }} label="Encoded" value={urlEncoded} onChange={e=>setUrlEncoded(e.target.value)} fullWidth multiline rows={3} />
@@ -181,7 +182,7 @@ export default function Tools() {
         <Grid item xs={12} md={6}>
           <Card sx={{ bgcolor: 'rgba(255,255,255,0.06)', transition: 'transform .2s', '&:hover': { transform: 'translateY(-4px)' } }}>
             <CardContent>
-              <Typography variant="h6">Unicode Escape/Unescape</Typography>
+              <Typography variant="h6"><CodeIcon sx={{ mr:1, verticalAlign: 'middle' }} />Unicode Escape/Unescape</Typography>
               <TextField sx={{ mt:1 }} label="Text" value={uniText} onChange={e=>setUniText(e.target.value)} fullWidth multiline rows={3} />
               <Button sx={{ mt:1, mr:1 }} variant="contained" onClick={unicodeEscape}>Escape</Button>
               <TextField sx={{ mt:2 }} label="Escaped" value={uniEscaped} onChange={e=>setUniEscaped(e.target.value)} fullWidth multiline rows={3} />
@@ -194,7 +195,7 @@ export default function Tools() {
         <Grid item xs={12} md={6}>
           <Card sx={{ bgcolor: 'rgba(255,255,255,0.06)', transition: 'transform .2s', '&:hover': { transform: 'translateY(-4px)' } }}>
             <CardContent>
-              <Typography variant="h6">JSON Format/Minify/Validate</Typography>
+              <Typography variant="h6"><DataObject sx={{ mr:1, verticalAlign: 'middle' }} />JSON Format/Minify/Validate</Typography>
               <TextField sx={{ mt:1 }} label="JSON Input" value={jsonInput} onChange={e=>setJsonInput(e.target.value)} fullWidth multiline rows={6} />
               <Button sx={{ mt:1, mr:1 }} variant="contained" onClick={jsonPretty}>Pretty</Button>
               <Button sx={{ mt:1, mr:1 }} variant="outlined" onClick={jsonMinify}>Minify</Button>
@@ -208,7 +209,7 @@ export default function Tools() {
         <Grid item xs={12} md={6}>
           <Card sx={{ bgcolor: 'rgba(255,255,255,0.06)', transition: 'transform .2s', '&:hover': { transform: 'translateY(-4px)' } }}>
             <CardContent>
-              <Typography variant="h6">YAML ↔ JSON</Typography>
+              <Typography variant="h6"><SyncAlt sx={{ mr:1, verticalAlign: 'middle' }} />YAML ↔ JSON</Typography>
               <TextField sx={{ mt:1 }} label="Input (YAML or JSON)" value={yamlInput} onChange={e=>setYamlInput(e.target.value)} fullWidth multiline rows={6} />
               <Button sx={{ mt:1, mr:1 }} variant="contained" onClick={yamlToJson}>YAML → JSON</Button>
               <Button sx={{ mt:1 }} variant="outlined" onClick={jsonToYaml}>JSON → YAML</Button>
@@ -221,7 +222,7 @@ export default function Tools() {
         <Grid item xs={12} md={6}>
           <Card sx={{ bgcolor: 'rgba(255,255,255,0.06)', transition: 'transform .2s', '&:hover': { transform: 'translateY(-4px)' } }}>
             <CardContent>
-              <Typography variant="h6">Unix Time ↔ ISO</Typography>
+              <Typography variant="h6"><AccessTime sx={{ mr:1, verticalAlign: 'middle' }} />Unix Time ↔ ISO</Typography>
               <FormControl fullWidth sx={{ mt:1 }}>
                 <InputLabel id="tz">Time Zone</InputLabel>
                 <Select labelId="tz" label="Time Zone" value={timeZone} onChange={e=>setTimeZone(e.target.value)}>

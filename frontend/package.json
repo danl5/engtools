@@ -11,6 +11,7 @@
     "@emotion/react": "^11.13.3",
     "@emotion/styled": "^11.13.0",
     "@mui/material": "^6.1.2",
+    "@mui/icons-material": "^6.1.2",
     "@reduxjs/toolkit": "^2.3.0",
     "js-yaml": "^4.1.0",
     "axios": "^1.7.7",

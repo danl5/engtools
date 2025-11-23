@@ -1,0 +1,30 @@
+version: '3.8'
+services:
+  backend:
+    build: ./backend
+    environment:
+      - SERVER_ADDR=${BACKEND_ADDR:-:8080}
+      - JWT_SECRET=${JWT_SECRET:-change-this-secret}
+      - ALLOW_ORIGIN=${ALLOW_ORIGIN:-*}
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  frontend:
+    build: ./frontend
+    ports:
+      - "${FRONTEND_PORT:-443}:443"
+      - "${FRONTEND_HTTP_PORT:-80}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    volumes:
+      - /etc/nginx/certs:/certs:ro
+    healthcheck:
+      test: ["CMD", "wget", "--no-check-certificate", "-q", "-O", "-", "https://localhost/index.html"]
+      interval: 10s
+      timeout: 5s
+      retries: 5

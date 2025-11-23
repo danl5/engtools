@@ -1,0 +1,19 @@
+{
+  "openapi": "3.0.0",
+  "info": {"title": "EngTools API", "version": "1.0.0"},
+  "servers": [{"url": "/"}],
+  "paths": {
+    "/health": {"get": {"responses": {"200": {"description": "ok"}}}},
+    "/api/v1/auth/login": {"post": {"requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object","properties": {"username": {"type":"string"},"password": {"type":"string"}},"required":["username","password"]}}}} ,"responses": {"200": {"description": "token"}}}},
+    "/api/v1/tools/base64/encode": {"post": {"responses": {"200": {"description": "ok"}}}},
+    "/api/v1/tools/base64/decode": {"post": {"responses": {"200": {"description": "ok"}}}},
+    "/api/v1/tools/bytes-to-string": {"post": {"responses": {"200": {"description": "ok"}}}},
+    "/api/v1/tools/string-to-bytes": {"post": {"responses": {"200": {"description": "ok"}}}},
+    "/api/v1/crypto/aes/encrypt": {"post": {"responses": {"200": {"description": "ok"}}}},
+    "/api/v1/crypto/aes/decrypt": {"post": {"responses": {"200": {"description": "ok"}}}},
+    "/api/v1/crypto/rsa/generate": {"post": {"responses": {"200": {"description": "ok"}}}},
+    "/api/v1/crypto/rsa/encrypt": {"post": {"responses": {"200": {"description": "ok"}}}},
+    "/api/v1/crypto/rsa/decrypt": {"post": {"responses": {"200": {"description": "ok"}}}},
+    "/api/v1/crypto/sha/hash": {"post": {"responses": {"200": {"description": "ok"}}}}
+  }
+}

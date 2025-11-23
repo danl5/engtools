@@ -29,6 +29,7 @@ func New(cfg *config.Config, log *zap.Logger, db *gorm.DB) *gin.Engine {
     })
 
     authSvc := service.NewAuthService(cfg, db)
+    geoSvc := service.NewGeoService(cfg)
     v1 := r.Group("/api/v1")
     v1.POST("/auth/login", controller.LoginHandler(authSvc))
 
@@ -36,6 +37,7 @@ func New(cfg *config.Config, log *zap.Logger, db *gorm.DB) *gin.Engine {
     v1.POST("/tools/string-to-bytes", controller.StringToBytes())
     v1.POST("/tools/base64/encode", controller.Base64Encode())
     v1.POST("/tools/base64/decode", controller.Base64Decode())
+    v1.GET("/tools/ip/geo", controller.IPGeo(geoSvc))
 
     v1.POST("/crypto/aes/encrypt", controller.AesEncrypt())
     v1.POST("/crypto/aes/decrypt", controller.AesDecrypt())

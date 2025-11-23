@@ -9,6 +9,7 @@ type Config struct {
     JWTSecret  string
     DBPath     string
     AllowOrigin string
+    IPInfoToken string
 }
 
 func Load() *Config {
@@ -28,5 +29,6 @@ func Load() *Config {
     if origin == "" {
         origin = "*"
     }
-    return &Config{ServerAddr: addr, JWTSecret: secret, DBPath: db, AllowOrigin: origin}
+    ipinfo := os.Getenv("IPINFO_TOKEN")
+    return &Config{ServerAddr: addr, JWTSecret: secret, DBPath: db, AllowOrigin: origin, IPInfoToken: ipinfo}
 }

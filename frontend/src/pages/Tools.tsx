@@ -1,5 +1,5 @@
 import { Container, Typography, Grid, TextField, Button, Alert, Card, CardContent, FormControl, InputLabel, Select, MenuItem } from '@mui/material'
-import { Link as LinkIcon, Code as CodeIcon, DataObject, SyncAlt, AccessTime } from '@mui/icons-material'
+import { Link as LinkIcon, Code as CodeIcon, DataObject, SyncAlt, AccessTime, Public, Place } from '@mui/icons-material'
 import { useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import api from '../api'
@@ -22,7 +22,18 @@ export default function Tools() {
   const [tsInput, setTsInput] = useState('')
   const [isoInput, setIsoInput] = useState('')
   const [timeZone, setTimeZone] = useState('UTC')
-  const [activeTool, setActiveTool] = useState<'base64' | 'url' | 'unicode' | 'json' | 'yamljson' | 'time'>('base64')
+  const [activeTool, setActiveTool] = useState<'base64' | 'url' | 'unicode' | 'json' | 'yamljson' | 'time' | 'ipgeo'>('base64')
+  const [ipInput, setIpInput] = useState('')
+  const [ipRes, setIpRes] = useState<any>(null)
+  const ipLookup = async () => {
+    dispatch(setLoading(true))
+    try {
+      const { data } = await api.get('/v1/tools/ip/geo', { params: ipInput ? { ip: ipInput } : {} })
+      setIpRes(data)
+      dispatch(setError(''))
+      dispatch(openSnackbar({ message: 'IP info fetched', severity: 'success' }))
+    } catch { dispatch(setError('IP lookup failed')) } finally { dispatch(setLoading(false)) }
+  }
   const encode = async () => {
     if (!text) { dispatch(setError('Please enter text')); return }
     dispatch(setLoading(true))
@@ -142,6 +153,7 @@ export default function Tools() {
           <MenuItem value="json">JSON Format/Minify/Validate</MenuItem>
           <MenuItem value="yamljson">YAML ↔ JSON</MenuItem>
           <MenuItem value="time">Unix Time ↔ ISO</MenuItem>
+          <MenuItem value="ipgeo">IP Geolocation</MenuItem>
         </Select>
       </FormControl>
       <Grid container spacing={2}>
@@ -236,6 +248,42 @@ export default function Tools() {
               <Button sx={{ mt:1, mr:1 }} variant="contained" onClick={tsToIso}>To ISO/Human</Button>
               <TextField sx={{ mt:2 }} label="ISO" value={isoInput} onChange={e=>setIsoInput(e.target.value)} fullWidth />
               <Button sx={{ mt:1 }} variant="outlined" onClick={isoToTs}>To Timestamp</Button>
+            </CardContent>
+          </Card>
+        </Grid>
+        )}
+        {activeTool === 'ipgeo' && (
+        <Grid item xs={12} md={8}>
+          <Card sx={{ bgcolor: 'rgba(255,255,255,0.06)', transition: 'transform .2s', '&:hover': { transform: 'translateY(-4px)' } }}>
+            <CardContent>
+              <Typography variant="h6"><Public sx={{ mr:1, verticalAlign:'middle' }} />IP Geolocation (ipinfo.io)</Typography>
+              <TextField sx={{ mt:1 }} label="IP (leave empty to use client IP)" value={ipInput} onChange={e=>setIpInput(e.target.value)} fullWidth />
+              <Button sx={{ mt:1 }} variant="contained" onClick={ipLookup}>Lookup</Button>
+              {ipRes && (
+                <>
+                  <Grid container spacing={2} sx={{ mt:2 }}>
+                    <Grid item xs={12} md={6}>
+                      <Typography sx={{ fontWeight: 700 }}><Place sx={{ mr:1, verticalAlign:'middle' }} />Location</Typography>
+                      <Typography sx={{ opacity:.9 }}>City: {ipRes.city} | Region: {ipRes.region}</Typography>
+                      <Typography sx={{ opacity:.9 }}>Country: {ipRes.country} ({ipRes.country_code})</Typography>
+                      <Typography sx={{ opacity:.9 }}>Lat/Lon: {ipRes.latitude}, {ipRes.longitude}</Typography>
+                      <Typography sx={{ opacity:.9 }}>Timezone: {ipRes.timezone}</Typography>
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                      <Typography sx={{ fontWeight: 700 }}>Network</Typography>
+                      <Typography sx={{ opacity:.9 }}>IP: {ipRes.ip}</Typography>
+                      <Typography sx={{ opacity:.9 }}>Hostname: {ipRes.hostname || '-'}</Typography>
+                      <Typography sx={{ opacity:.9 }}>Org: {ipRes.org}</Typography>
+                      <Typography sx={{ opacity:.9 }}>ASN: {ipRes.asn || '-'}</Typography>
+                      <Typography sx={{ opacity:.9 }}>Postal: {ipRes.postal || '-'}</Typography>
+                      <Typography sx={{ opacity:.9 }}>Anycast: {String(ipRes.anycast)}</Typography>
+                      {ipRes.latitude && ipRes.longitude && (
+                        <Button sx={{ mt:1 }} href={`https://www.google.com/maps?q=${ipRes.latitude},${ipRes.longitude}`} target="_blank">Open in Maps</Button>
+                      )}
+                    </Grid>
+                  </Grid>
+                </>
+              )}
             </CardContent>
           </Card>
         </Grid>

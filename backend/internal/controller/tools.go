@@ -3,6 +3,8 @@ package controller
 import (
     "encoding/base64"
     "github.com/gin-gonic/gin"
+    "engtools/backend/internal/service"
+    "context"
 )
 
 type StringBytesRequest struct {
@@ -59,5 +61,17 @@ func Base64Decode() gin.HandlerFunc {
             return
         }
         c.JSON(200, gin.H{"text": string(b)})
+    }
+}
+
+func IPGeo(geo *service.GeoService) gin.HandlerFunc {
+    return func(c *gin.Context) {
+        ip := c.Query("ip")
+        if ip == "" { ip = c.ClientIP() }
+        ctx, cancel := context.WithTimeout(c.Request.Context(), 1500_000_000)
+        defer cancel()
+        res, err := geo.Lookup(ctx, ip)
+        if err != nil { c.JSON(502, gin.H{"error": err.Error()}); return }
+        c.JSON(200, res)
     }
 }

@@ -6,6 +6,7 @@ services:
       - SERVER_ADDR=${BACKEND_ADDR:-:8080}
       - JWT_SECRET=${JWT_SECRET:-change-this-secret}
       - ALLOW_ORIGIN=${ALLOW_ORIGIN:-*}
+      - IPINFO_TOKEN=${IPINFO_TOKEN:-}
     ports:
       - "${BACKEND_PORT:-8080}:8080"
     healthcheck:

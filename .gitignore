@@ -5,5 +5,4 @@ frontend/dist/
 dist/
 backend/data.db
 backend/backend/data.db
-certs/*.key
-certs/*.pem
+certs/*

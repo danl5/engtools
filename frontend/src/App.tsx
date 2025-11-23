@@ -4,7 +4,6 @@ import { ThemeProvider, createTheme } from '@mui/material/styles'
 import Loader from './components/Loader'
 import Tools from './pages/Tools'
 import Crypto from './pages/Crypto'
-import Preview from './pages/Preview'
 import { useSelector } from 'react-redux'
 import { RootState } from './store'
 
@@ -14,7 +13,7 @@ const theme = createTheme({
 })
 
 export default function App() {
-  const [tab, setTab] = useState<'tools' | 'crypto' | 'preview'>('tools')
+  const [tab, setTab] = useState<'tools' | 'crypto'>('tools')
   const snackbar = useSelector((s: RootState) => s.ui.snackbar)
   return (
     <ThemeProvider theme={theme}>
@@ -34,9 +33,8 @@ export default function App() {
           <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2 }}>
             <Tab label="Tools" value="tools" />
             <Tab label="Crypto" value="crypto" />
-            <Tab label="Layout Preview" value="preview" />
           </Tabs>
-          {tab==='tools'? <Tools/> : tab==='crypto'? <Crypto/> : <Preview/>}
+          {tab==='tools'? <Tools/> : <Crypto/>}
         </Container>
         <Snackbar open={snackbar.open} autoHideDuration={3000}>
           <Alert severity={snackbar.severity} sx={{ width: '100%' }}>{snackbar.message}</Alert>

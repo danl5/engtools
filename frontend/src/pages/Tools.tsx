@@ -1,5 +1,8 @@
 import { Container, Typography, Grid, TextField, Button, Alert, Card, CardContent, FormControl, InputLabel, Select, MenuItem } from '@mui/material'
 import { Link as LinkIcon, Code as CodeIcon, DataObject, SyncAlt, AccessTime, Public, Place } from '@mui/icons-material'
+// @ts-ignore
+import * as yaml from 'js-yaml'
+import BigText from '../components/BigText'
 import { useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import api from '../api'
@@ -9,6 +12,7 @@ import { RootState } from '../store'
 export default function Tools() {
   const dispatch = useDispatch()
   const error = useSelector((s: RootState) => s.ui.error)
+  const loading = useSelector((s: RootState) => s.ui.loading)
   const [text, setText] = useState('')
   const [base64, setBase64] = useState('')
   const [urlText, setUrlText] = useState('')
@@ -100,24 +104,19 @@ export default function Tools() {
   }
   const yamlToJson = () => {
     try {
-      // js-yaml will be used here
-      // @ts-ignore
-      const yaml = require('js-yaml')
-      const obj = yaml.load(yamlInput)
+      const obj = yaml.load(normalize(yamlInput))
       setYamlOutput(JSON.stringify(obj, null, 2))
       dispatch(setError(''))
       dispatch(openSnackbar({ message: 'YAML → JSON done', severity: 'success' }))
-    } catch { dispatch(setError('YAML parse failed')) }
+    } catch (e: any) { dispatch(setError('YAML parse failed: ' + (e?.message || ''))) }
   }
   const jsonToYaml = () => {
     try {
-      // @ts-ignore
-      const yaml = require('js-yaml')
-      const obj = JSON.parse(yamlInput)
+      const obj = JSON.parse(normalize(yamlInput))
       setYamlOutput(yaml.dump(obj))
       dispatch(setError(''))
       dispatch(openSnackbar({ message: 'JSON → YAML done', severity: 'success' }))
-    } catch { dispatch(setError('JSON parse failed')) }
+    } catch (e: any) { dispatch(setError('JSON parse failed: ' + (e?.message || ''))) }
   }
   const tsToIso = () => {
     if (!tsInput) { dispatch(setError('Please enter timestamp')); return }
@@ -140,6 +139,25 @@ export default function Tools() {
     dispatch(setError(''))
     dispatch(openSnackbar({ message: 'Converted to timestamp', severity: 'success' }))
   }
+  const jsonYamlAuto = () => {
+    const s = normalize(yamlInput)
+    try {
+      const obj = JSON.parse(s)
+      setYamlOutput(yaml.dump(obj))
+      dispatch(setError(''))
+      dispatch(openSnackbar({ message: 'Auto: JSON → YAML', severity: 'success' }))
+      return
+    } catch {}
+    try {
+      const obj = yaml.load(s) as any
+      setYamlOutput(JSON.stringify(obj, null, 2))
+      dispatch(setError(''))
+      dispatch(openSnackbar({ message: 'Auto: YAML → JSON', severity: 'success' }))
+      return
+    } catch (e: any) {
+      dispatch(setError('Input is neither valid JSON nor YAML: ' + (e?.message || '')))
+    }
+  }
   return (
     <Container sx={{ mt: 4 }}>
       <Typography variant="h5" gutterBottom>Tools: Encoding and Conversion</Typography>
@@ -156,13 +174,13 @@ export default function Tools() {
           <MenuItem value="ipgeo">IP Geolocation</MenuItem>
         </Select>
       </FormControl>
-      <Grid container spacing={2}>
+      <Grid container spacing={4}>
         {activeTool === 'base64' && (
         <Grid item xs={12} md={6}>
           <Card sx={{ bgcolor: 'rgba(255,255,255,0.06)', transition: 'transform .2s', '&:hover': { transform: 'translateY(-4px)' } }}>
-            <CardContent>
-              <TextField label="Text" value={text} onChange={e=>setText(e.target.value)} fullWidth multiline rows={5} required />
-              <Button sx={{ mt: 1 }} variant="contained" onClick={encode}>Encode to Base64</Button>
+            <CardContent sx={{ p: 3 }}>
+              <BigText label="Text" value={text} onChange={v=>{ setText(v); dispatch(setError('')) }} onExecute={encode} />
+              <Button sx={{ mt: 1 }} variant="contained" disabled={loading} onClick={encode}>Encode to Base64</Button>
             </CardContent>
           </Card>
         </Grid>
@@ -170,9 +188,9 @@ export default function Tools() {
         {activeTool === 'base64' && (
         <Grid item xs={12} md={6}>
           <Card sx={{ bgcolor: 'rgba(255,255,255,0.06)', transition: 'transform .2s', '&:hover': { transform: 'translateY(-4px)' } }}>
-            <CardContent>
-              <TextField label="Base64" value={base64} onChange={e=>setBase64(e.target.value)} fullWidth multiline rows={5} required />
-              <Button sx={{ mt: 1 }} variant="outlined" onClick={decode}>Decode to Text</Button>
+            <CardContent sx={{ p: 3 }}>
+              <BigText label="Base64" value={base64} onChange={v=>{ setBase64(v); dispatch(setError('')) }} onExecute={decode} />
+              <Button sx={{ mt: 1 }} variant="outlined" disabled={loading} onClick={decode}>Decode to Text</Button>
             </CardContent>
           </Card>
         </Grid>
@@ -180,7 +198,7 @@ export default function Tools() {
         {activeTool === 'url' && (
         <Grid item xs={12} md={6}>
           <Card sx={{ bgcolor: 'rgba(255,255,255,0.06)', transition: 'transform .2s', '&:hover': { transform: 'translateY(-4px)' } }}>
-            <CardContent>
+            <CardContent sx={{ p: 3 }}>
               <Typography variant="h6"><LinkIcon sx={{ mr:1, verticalAlign: 'middle' }} />URL Encode/Decode</Typography>
               <TextField sx={{ mt:1 }} label="Text/URL" value={urlText} onChange={e=>setUrlText(e.target.value)} fullWidth multiline rows={3} />
               <Button sx={{ mt:1, mr:1 }} variant="contained" onClick={urlDoEncode}>Encode</Button>
@@ -193,7 +211,7 @@ export default function Tools() {
         {activeTool === 'unicode' && (
         <Grid item xs={12} md={6}>
           <Card sx={{ bgcolor: 'rgba(255,255,255,0.06)', transition: 'transform .2s', '&:hover': { transform: 'translateY(-4px)' } }}>
-            <CardContent>
+            <CardContent sx={{ p: 3 }}>
               <Typography variant="h6"><CodeIcon sx={{ mr:1, verticalAlign: 'middle' }} />Unicode Escape/Unescape</Typography>
               <TextField sx={{ mt:1 }} label="Text" value={uniText} onChange={e=>setUniText(e.target.value)} fullWidth multiline rows={3} />
               <Button sx={{ mt:1, mr:1 }} variant="contained" onClick={unicodeEscape}>Escape</Button>
@@ -204,28 +222,29 @@ export default function Tools() {
         </Grid>
         )}
         {activeTool === 'json' && (
-        <Grid item xs={12} md={6}>
+        <Grid item xs={12} md={12}>
           <Card sx={{ bgcolor: 'rgba(255,255,255,0.06)', transition: 'transform .2s', '&:hover': { transform: 'translateY(-4px)' } }}>
-            <CardContent>
+            <CardContent sx={{ p: 3 }}>
               <Typography variant="h6"><DataObject sx={{ mr:1, verticalAlign: 'middle' }} />JSON Format/Minify/Validate</Typography>
-              <TextField sx={{ mt:1 }} label="JSON Input" value={jsonInput} onChange={e=>setJsonInput(e.target.value)} fullWidth multiline rows={6} />
-              <Button sx={{ mt:1, mr:1 }} variant="contained" onClick={jsonPretty}>Pretty</Button>
-              <Button sx={{ mt:1, mr:1 }} variant="outlined" onClick={jsonMinify}>Minify</Button>
-              <Button sx={{ mt:1 }} variant="outlined" onClick={jsonValidate}>Validate</Button>
-              <TextField sx={{ mt:2 }} label="Output" value={jsonOutput} fullWidth multiline rows={6} />
+              <BigText label="JSON Input" value={jsonInput} onChange={v=>{ setJsonInput(v); dispatch(setError('')) }} onExecute={jsonPretty} />
+              <Button sx={{ mt:1, mr:1 }} variant="contained" disabled={loading} onClick={jsonPretty}>Pretty</Button>
+              <Button sx={{ mt:1, mr:1 }} variant="outlined" disabled={loading} onClick={jsonMinify}>Minify</Button>
+              <Button sx={{ mt:1 }} variant="outlined" disabled={loading} onClick={jsonValidate}>Validate</Button>
+              <BigText label="Output" value={jsonOutput} readOnly downloadName={'output.json'} />
             </CardContent>
           </Card>
         </Grid>
         )}
         {activeTool === 'yamljson' && (
-        <Grid item xs={12} md={6}>
+        <Grid item xs={12} md={12}>
           <Card sx={{ bgcolor: 'rgba(255,255,255,0.06)', transition: 'transform .2s', '&:hover': { transform: 'translateY(-4px)' } }}>
-            <CardContent>
+            <CardContent sx={{ p: 3 }}>
               <Typography variant="h6"><SyncAlt sx={{ mr:1, verticalAlign: 'middle' }} />YAML ↔ JSON</Typography>
-              <TextField sx={{ mt:1 }} label="Input (YAML or JSON)" value={yamlInput} onChange={e=>setYamlInput(e.target.value)} fullWidth multiline rows={6} />
-              <Button sx={{ mt:1, mr:1 }} variant="contained" onClick={yamlToJson}>YAML → JSON</Button>
-              <Button sx={{ mt:1 }} variant="outlined" onClick={jsonToYaml}>JSON → YAML</Button>
-              <TextField sx={{ mt:2 }} label="Output" value={yamlOutput} fullWidth multiline rows={6} />
+              <BigText label="Input (YAML or JSON)" value={yamlInput} onChange={v=>{ setYamlInput(v); dispatch(setError('')) }} onExecute={jsonYamlAuto} />
+              <Button sx={{ mt:1, mr:1 }} variant="contained" disabled={loading} onClick={yamlToJson}>YAML → JSON</Button>
+              <Button sx={{ mt:1, mr:1 }} variant="outlined" disabled={loading} onClick={jsonToYaml}>JSON → YAML</Button>
+              <Button sx={{ mt:1 }} variant="outlined" disabled={loading} onClick={jsonYamlAuto}>Auto Detect</Button>
+              <BigText label="Output" value={yamlOutput} readOnly downloadName={'output.yaml'} />
             </CardContent>
           </Card>
         </Grid>
@@ -292,3 +311,9 @@ export default function Tools() {
     </Container>
   )
 }
+  const normalize = (s: string) => s
+    .replace(/^[\uFEFF]/, '')
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .trim()

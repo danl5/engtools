@@ -30,7 +30,7 @@ export default function App() {
           <Box sx={{ position: 'absolute', bottom: 40, right: 80, width: 180, height: 180, borderRadius: '50%', background: 'radial-gradient(circle, rgba(167,139,250,.6), transparent 60%)', animation: 'float 7s ease-in-out infinite' }} />
         </Box>
         <Loader />
-        <Container sx={{ mt: 3 }}>
+        <Container maxWidth="xl" sx={{ mt: 4, pb: 6 }}>
           <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2 }}>
             <Tab label="Tools" value="tools" />
             <Tab label="Crypto" value="crypto" />

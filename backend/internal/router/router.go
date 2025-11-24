@@ -41,10 +41,18 @@ func New(cfg *config.Config, log *zap.Logger, db *gorm.DB) *gin.Engine {
 
     v1.POST("/crypto/aes/encrypt", controller.AesEncrypt())
     v1.POST("/crypto/aes/decrypt", controller.AesDecrypt())
+    v1.POST("/crypto/aes/cbc/encrypt", controller.AesCbcEncrypt())
+    v1.POST("/crypto/aes/cbc/decrypt", controller.AesCbcDecrypt())
     v1.POST("/crypto/rsa/generate", controller.RsaGenerate())
     v1.POST("/crypto/rsa/encrypt", controller.RsaEncrypt())
     v1.POST("/crypto/rsa/decrypt", controller.RsaDecrypt())
     v1.POST("/crypto/sha/hash", controller.ShaHash())
+    v1.POST("/crypto/hmac/calc", controller.HmacCalc())
+    v1.POST("/crypto/chacha/encrypt", controller.ChaChaEncrypt())
+    v1.POST("/crypto/chacha/decrypt", controller.ChaChaDecrypt())
+    v1.POST("/crypto/pbkdf2/derive", controller.PBKDF2Derive())
+    v1.POST("/crypto/bcrypt/hash", controller.BcryptHash())
+    v1.POST("/crypto/bcrypt/verify", controller.BcryptVerify())
     return r
 }
 

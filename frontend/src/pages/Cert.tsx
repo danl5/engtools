@@ -1,4 +1,4 @@
-import { Container, Typography, Grid, Card, CardContent, TextField, Button, Alert, FormControl, InputLabel, Select, MenuItem } from '@mui/material'
+import { Container, Typography, Grid, Card, CardContent, TextField, Button, Alert, FormControl, InputLabel, Select, MenuItem, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper } from '@mui/material'
 import { useState } from 'react'
 import BigText from '../components/BigText'
 import api from '../api'
@@ -41,7 +41,7 @@ export default function Cert() {
       const { data } = await api.post('/v1/tls/inspect', { host, port })
       setInspectOut(data); dispatch(setError(''))
       dispatch(openSnackbar({ message: 'Fetched remote chain', severity: 'success' }))
-    } catch { dispatch(setError('Inspect failed')) } finally { dispatch(setLoading(false)) }
+    } catch (err:any) { dispatch(setError('Inspect failed')) } finally { dispatch(setLoading(false)) }
   }
   const verify = async () => {
     if (!chainPem) { dispatch(setError('Please paste chain PEM (leaf first)')); return }
@@ -66,14 +66,14 @@ export default function Cert() {
   const toDer = async () => {
     if (!pem) { dispatch(setError('Please paste certificate PEM')); return }
     dispatch(setLoading(true))
-    try { const { data } = await api.post('/v1/cert/convert/to_der', { pem }); setParseOut({ der_base64: data.der_base64 }); dispatch(setError('')) } catch { dispatch(setError('Convert failed')) } finally { dispatch(setLoading(false)) }
+    try { const { data } = await api.post('/v1/cert/convert/to_der', { pem }); setConvertOut({ der_base64: data.der_base64 }); dispatch(setError('')) } catch { dispatch(setError('Convert failed')) } finally { dispatch(setLoading(false)) }
   }
   const [derIn, setDerIn] = useState('')
   const [convertOut, setConvertOut] = useState<any>(null)
   const toPem = async () => {
     if (!derIn) { dispatch(setError('Please paste DER(Base64)')); return }
     dispatch(setLoading(true))
-    try { const { data } = await api.post('/v1/cert/convert/to_pem', { der_base64: derIn }); setConvertOut({ pem: data.pem }); dispatch(setError('')) } catch { dispatch(setError('Convert failed')) } finally { dispatch(setLoading(false)) }
+    try { const { data } = await api.post('/v1/cert/convert/to_pem', { der_base64: derIn.trim() }); setConvertOut({ pem: data.pem }); dispatch(setError('')) } catch { dispatch(setError('Convert failed')) } finally { dispatch(setLoading(false)) }
   }
   const splitPem = (s: string) => { const blocks: string[] = []; const re = /-----BEGIN[^-]+-----[\s\S]*?-----END[^-]+-----/g; let m; while ((m = re.exec(s))){ blocks.push(m[0]) } return blocks }
   return (
@@ -101,21 +101,32 @@ export default function Cert() {
               <Button sx={{ mt:1, mr:1 }} variant="contained" onClick={parse}>Parse</Button>
               <Button sx={{ mt:1 }} variant="outlined" onClick={toDer}>PEM → DER(Base64)</Button>
               {parseOut && parseOut.certs && (
-                <Grid container spacing={2} sx={{ mt:2 }}>
-                  {parseOut.certs.map((ci:any, idx:number)=> (
-                    <Grid key={idx} item xs={12} md={6}>
-                      <Card sx={{ bgcolor:'rgba(255,255,255,0.06)' }}><CardContent sx={{ p:2 }}>
-                        <Typography sx={{ fontWeight:700 }}>{ci.subject}</Typography>
-                        <Typography sx={{ opacity:.9 }}>Issuer: {ci.issuer}</Typography>
-                        <Typography sx={{ opacity:.9 }}>Valid: {new Date(ci.not_before).toLocaleString()} ~ {new Date(ci.not_after).toLocaleString()}</Typography>
-                        <Typography sx={{ opacity:.9 }}>FP(SHA256): {ci.fingerprint_sha256}</Typography>
-                        <Typography sx={{ opacity:.9 }}>SPKI(SHA256): {ci.spki_sha256}</Typography>
-                        <Typography sx={{ opacity:.9 }}>Key: {ci.key_alg} {ci.key_bits || ''}</Typography>
-                        {ci.dns && ci.dns.length>0 && <Typography sx={{ opacity:.9 }}>DNS: {ci.dns.join(', ')}</Typography>}
-                      </CardContent></Card>
-                    </Grid>
-                  ))}
-                </Grid>
+                <TableContainer component={Paper} sx={{ mt:2, background:'rgba(255,255,255,0.06)' }}>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Subject</TableCell>
+                        <TableCell>Issuer</TableCell>
+                        <TableCell>Valid From</TableCell>
+                        <TableCell>Valid To</TableCell>
+                        <TableCell>Key</TableCell>
+                        <TableCell>Fingerprint(SHA256)</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {parseOut.certs.map((ci:any, idx:number)=> (
+                        <TableRow key={idx}>
+                          <TableCell>{ci.subject}</TableCell>
+                          <TableCell>{ci.issuer}</TableCell>
+                          <TableCell>{new Date(ci.not_before).toLocaleString()}</TableCell>
+                          <TableCell>{new Date(ci.not_after).toLocaleString()}</TableCell>
+                          <TableCell>{ci.key_alg} {ci.key_bits || ''}</TableCell>
+                          <TableCell sx={{ fontFamily:'monospace' }}>{ci.fingerprint_sha256}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
               )}
             </CardContent></Card>
           </Grid>
@@ -141,7 +152,7 @@ export default function Cert() {
                 <Grid item xs={12} md={6}><TextField label="Port" type="number" value={port} onChange={e=>setPort(Number(e.target.value))} fullWidth /></Grid>
               </Grid>
               <Button sx={{ mt:1 }} variant="contained" onClick={inspect}>Fetch</Button>
-              {inspectOut && (
+              {inspectOut && inspectOut.certs && (
                 <Grid container spacing={2} sx={{ mt:2 }}>
                   <Grid item xs={12}><Alert severity="info">TLS Version: {inspectOut.tls_version} | Cipher Suite: {inspectOut.cipher_suite}</Alert></Grid>
                   {inspectOut.certs?.map((ci:any, idx:number)=> (
@@ -156,6 +167,7 @@ export default function Cert() {
                   ))}
                 </Grid>
               )}
+              {inspectOut && !inspectOut.certs && (<Alert sx={{ mt:2 }} severity="error">Fetch failed</Alert>)}
             </CardContent></Card>
           </Grid>
         )}
@@ -195,6 +207,7 @@ export default function Cert() {
               <Button sx={{ mt:1, mr:1 }} variant="contained" onClick={toDer}>PEM → DER(Base64)</Button>
               <BigText label="DER(Base64)" value={derIn} onChange={setDerIn} />
               <Button sx={{ mt:1 }} variant="outlined" onClick={toPem}>DER(Base64) → PEM</Button>
+              {convertOut && convertOut.der_base64 && <BigText label="DER(Base64) Output" value={convertOut.der_base64} readOnly downloadName={'certificate.der.b64'} />}
               {convertOut && convertOut.pem && <BigText label="PEM Output" value={convertOut.pem} readOnly downloadName={'certificate.pem'} />}
             </CardContent></Card>
           </Grid>

@@ -39,8 +39,8 @@ export default function Cert() {
     dispatch(setLoading(true))
     try {
       const { data } = await api.post('/v1/tls/inspect', { host, port })
-      setInspectOut(data); dispatch(setError(''))
-      dispatch(openSnackbar({ message: 'Fetched remote chain', severity: 'success' }))
+      if (data.error) { setInspectOut(null); dispatch(setError(data.error)); }
+      else { setInspectOut(data); dispatch(setError('')); dispatch(openSnackbar({ message: 'Fetched remote chain', severity: 'success' })) }
     } catch (err:any) { dispatch(setError('Inspect failed')) } finally { dispatch(setLoading(false)) }
   }
   const verify = async () => {
@@ -110,6 +110,9 @@ export default function Cert() {
                         <TableCell>Valid From</TableCell>
                         <TableCell>Valid To</TableCell>
                         <TableCell>Key</TableCell>
+                        <TableCell>CA</TableCell>
+                        <TableCell>Key Usage</TableCell>
+                        <TableCell>Ext Key Usage</TableCell>
                         <TableCell>Fingerprint(SHA256)</TableCell>
                       </TableRow>
                     </TableHead>
@@ -121,6 +124,9 @@ export default function Cert() {
                           <TableCell>{new Date(ci.not_before).toLocaleString()}</TableCell>
                           <TableCell>{new Date(ci.not_after).toLocaleString()}</TableCell>
                           <TableCell>{ci.key_alg} {ci.key_bits || ''}</TableCell>
+                          <TableCell>{ci.is_ca ? 'Yes' : 'No'}</TableCell>
+                          <TableCell>{Array.isArray(ci.key_usage) && ci.key_usage.length ? ci.key_usage.join(', ') : '-'}</TableCell>
+                          <TableCell>{Array.isArray(ci.ext_key_usage) && ci.ext_key_usage.length ? ci.ext_key_usage.join(', ') : '-'}</TableCell>
                           <TableCell sx={{ fontFamily:'monospace' }}>{ci.fingerprint_sha256}</TableCell>
                         </TableRow>
                       ))}
@@ -153,19 +159,35 @@ export default function Cert() {
               </Grid>
               <Button sx={{ mt:1 }} variant="contained" onClick={inspect}>Fetch</Button>
               {inspectOut && inspectOut.certs && (
-                <Grid container spacing={2} sx={{ mt:2 }}>
-                  <Grid item xs={12}><Alert severity="info">TLS Version: {inspectOut.tls_version} | Cipher Suite: {inspectOut.cipher_suite}</Alert></Grid>
-                  {inspectOut.certs?.map((ci:any, idx:number)=> (
-                    <Grid key={idx} item xs={12} md={6}>
-                      <Card sx={{ bgcolor:'rgba(255,255,255,0.06)' }}><CardContent sx={{ p:2 }}>
-                        <Typography sx={{ fontWeight:700 }}>{ci.subject}</Typography>
-                        <Typography sx={{ opacity:.9 }}>Issuer: {ci.issuer}</Typography>
-                        <Typography sx={{ opacity:.9 }}>Valid: {new Date(ci.not_before).toLocaleString()} ~ {new Date(ci.not_after).toLocaleString()}</Typography>
-                        <Typography sx={{ opacity:.9 }}>FP(SHA256): {ci.fingerprint_sha256}</Typography>
-                      </CardContent></Card>
-                    </Grid>
-                  ))}
-                </Grid>
+                <>
+                  <Alert sx={{ mt:2 }} severity="info">TLS Version: {inspectOut.tls_version} | Cipher Suite: {inspectOut.cipher_suite}</Alert>
+                  <TableContainer component={Paper} sx={{ mt:2, background:'rgba(255,255,255,0.06)' }}>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>#</TableCell>
+                          <TableCell>Subject</TableCell>
+                          <TableCell>Issuer</TableCell>
+                          <TableCell>Valid From</TableCell>
+                          <TableCell>Valid To</TableCell>
+                          <TableCell>Fingerprint(SHA256)</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {inspectOut.certs.map((ci:any, idx:number)=> (
+                          <TableRow key={idx}>
+                            <TableCell>{idx===0 ? 'Leaf' : idx}</TableCell>
+                            <TableCell>{ci.subject}</TableCell>
+                            <TableCell>{ci.issuer}</TableCell>
+                            <TableCell>{new Date(ci.not_before).toLocaleString()}</TableCell>
+                            <TableCell>{new Date(ci.not_after).toLocaleString()}</TableCell>
+                            <TableCell sx={{ fontFamily:'monospace' }}>{ci.fingerprint_sha256}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </>
               )}
               {inspectOut && !inspectOut.certs && (<Alert sx={{ mt:2 }} severity="error">Fetch failed</Alert>)}
             </CardContent></Card>

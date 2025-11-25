@@ -53,6 +53,12 @@ func New(cfg *config.Config, log *zap.Logger, db *gorm.DB) *gin.Engine {
     v1.POST("/crypto/pbkdf2/derive", controller.PBKDF2Derive())
     v1.POST("/crypto/bcrypt/hash", controller.BcryptHash())
     v1.POST("/crypto/bcrypt/verify", controller.BcryptVerify())
+    v1.POST("/cert/parse", controller.CertParse())
+    v1.POST("/cert/verify", controller.CertVerify())
+    v1.POST("/tls/inspect", controller.TLSInspect())
+    v1.POST("/cert/csr/generate", controller.CSRGenerate())
+    v1.POST("/cert/convert/to_der", controller.CertToDER())
+    v1.POST("/cert/convert/to_pem", controller.CertToPEM())
     return r
 }
 

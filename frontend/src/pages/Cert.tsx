@@ -29,7 +29,8 @@ export default function Cert() {
     if (!pem) { dispatch(setError('Please paste certificate PEM')); return }
     dispatch(setLoading(true))
     try {
-      const { data } = await api.post('/v1/cert/parse', { pem })
+      const pemClean = pem.replace(/\r\n/g, '\n').replace(/^\s*\n+/, '').replace(/\n+\s*$/, '').trim()
+      const { data } = await api.post('/v1/cert/parse', { pem: pemClean })
       setParseOut(data); dispatch(setError(''))
       dispatch(openSnackbar({ message: 'Parsed certificate', severity: 'success' }))
     } catch (e) { dispatch(setError('Parse failed')) } finally { dispatch(setLoading(false)) }
@@ -38,7 +39,12 @@ export default function Cert() {
     if (!host) { dispatch(setError('Please enter host')); return }
     dispatch(setLoading(true))
     try {
-      const { data } = await api.post('/v1/tls/inspect', { host, port })
+      let hostClean = host.trim()
+      if (hostClean.startsWith('http://') || hostClean.startsWith('https://')) hostClean = hostClean.replace(/^https?:\/\//, '')
+      hostClean = hostClean.split('/')[0]
+      if (hostClean.startsWith('[') && hostClean.includes(']')) hostClean = hostClean.slice(hostClean.indexOf('[')+1, hostClean.indexOf(']'))
+      const idx = hostClean.indexOf(':'); if (idx>0) hostClean = hostClean.slice(0, idx)
+      const { data } = await api.post('/v1/tls/inspect', { host: hostClean, port })
       if (data.error) { setInspectOut(null); dispatch(setError(data.error)); }
       else { setInspectOut(data); dispatch(setError('')); dispatch(openSnackbar({ message: 'Fetched remote chain', severity: 'success' })) }
     } catch (err:any) { dispatch(setError('Inspect failed')) } finally { dispatch(setLoading(false)) }
@@ -47,18 +53,23 @@ export default function Cert() {
     if (!chainPem) { dispatch(setError('Please paste chain PEM (leaf first)')); return }
     dispatch(setLoading(true))
     try {
-      const chain = splitPem(chainPem)
-      const roots = rootsPem ? splitPem(rootsPem) : []
+      const clean = (s: string) => s.replace(/\r\n/g, '\n').replace(/^\s*\n+/, '').replace(/\n+\s*$/, '').trim()
+      const chain = splitPem(clean(chainPem))
+      const roots = rootsPem ? splitPem(clean(rootsPem)) : []
       const { data } = await api.post('/v1/cert/verify', { chain_pem: chain, roots_pem: roots, server_name: serverName })
       setVerifyOut(data); dispatch(setError(''))
       dispatch(openSnackbar({ message: 'Verification done', severity: 'success' }))
     } catch { dispatch(setError('Verify failed')) } finally { dispatch(setLoading(false)) }
   }
   const csrGenerate = async () => {
-    const san = csrSAN.split(/[,\s]+/).filter(Boolean)
+    const parts = csrSAN.split(/[ ,\n\t]+/).map(v=>v.trim()).filter(Boolean)
+    const seen = new Set<string>()
+    const san: string[] = []
+    for (const p of parts) { if (!seen.has(p)) { seen.add(p); san.push(p) } }
     dispatch(setLoading(true))
     try {
-      const { data } = await api.post('/v1/cert/csr/generate', { cn: csrSubject.cn, o: csrSubject.o, ou: csrSubject.ou, l: csrSubject.l, st: csrSubject.st, c: csrSubject.c, san_dns: san, key_type: keyType, bits, curve })
+      const subj = { cn: csrSubject.cn.trim(), o: csrSubject.o.trim(), ou: csrSubject.ou.trim(), l: csrSubject.l.trim(), st: csrSubject.st.trim(), c: csrSubject.c.trim() }
+      const { data } = await api.post('/v1/cert/csr/generate', { cn: subj.cn, o: subj.o, ou: subj.ou, l: subj.l, st: subj.st, c: subj.c, san_dns: san, key_type: keyType, bits, curve })
       setCsrOut(data); dispatch(setError(''))
       dispatch(openSnackbar({ message: 'CSR generated', severity: 'success' }))
     } catch { dispatch(setError('CSR generate failed')) } finally { dispatch(setLoading(false)) }
@@ -66,7 +77,11 @@ export default function Cert() {
   const toDer = async () => {
     if (!pem) { dispatch(setError('Please paste certificate PEM')); return }
     dispatch(setLoading(true))
-    try { const { data } = await api.post('/v1/cert/convert/to_der', { pem }); setConvertOut({ der_base64: data.der_base64 }); dispatch(setError('')) } catch { dispatch(setError('Convert failed')) } finally { dispatch(setLoading(false)) }
+    try {
+      const pemClean = pem.replace(/\r\n/g, '\n').replace(/^\s*\n+/, '').replace(/\n+\s*$/, '').trim()
+      const { data } = await api.post('/v1/cert/convert/to_der', { pem: pemClean });
+      setConvertOut({ der_base64: data.der_base64 }); dispatch(setError(''))
+    } catch { dispatch(setError('Convert failed')) } finally { dispatch(setLoading(false)) }
   }
   const [derIn, setDerIn] = useState('')
   const [convertOut, setConvertOut] = useState<any>(null)

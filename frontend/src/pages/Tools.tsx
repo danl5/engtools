@@ -1,7 +1,5 @@
 import { Container, Typography, Grid, TextField, Button, Alert, Card, CardContent, FormControl, InputLabel, Select, MenuItem } from '@mui/material'
-import { Link as LinkIcon, Code as CodeIcon, DataObject, SyncAlt, AccessTime, Public, Place } from '@mui/icons-material'
-// @ts-ignore
-import * as yaml from 'js-yaml'
+import { Link as LinkIcon, Code as CodeIcon, AccessTime } from '@mui/icons-material'
 import BigText from '../components/BigText'
 import { useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
@@ -21,23 +19,10 @@ export default function Tools() {
   const [uniEscaped, setUniEscaped] = useState('')
   const [jsonInput, setJsonInput] = useState('')
   const [jsonOutput, setJsonOutput] = useState('')
-  const [yamlInput, setYamlInput] = useState('')
-  const [yamlOutput, setYamlOutput] = useState('')
   const [tsInput, setTsInput] = useState('')
   const [isoInput, setIsoInput] = useState('')
   const [timeZone, setTimeZone] = useState('UTC')
-  const [activeTool, setActiveTool] = useState<'base64' | 'url' | 'unicode' | 'json' | 'yamljson' | 'time' | 'ipgeo'>('base64')
-  const [ipInput, setIpInput] = useState('')
-  const [ipRes, setIpRes] = useState<any>(null)
-  const ipLookup = async () => {
-    dispatch(setLoading(true))
-    try {
-      const { data } = await api.get('/v1/tools/ip/geo', { params: ipInput ? { ip: ipInput } : {} })
-      setIpRes(data)
-      dispatch(setError(''))
-      dispatch(openSnackbar({ message: 'IP info fetched', severity: 'success' }))
-    } catch { dispatch(setError('IP lookup failed')) } finally { dispatch(setLoading(false)) }
-  }
+  const [activeTool, setActiveTool] = useState<'base64' | 'url' | 'unicode' | 'time'>('base64')
   const encode = async () => {
     if (!text) { dispatch(setError('Please enter text')); return }
     dispatch(setLoading(true))
@@ -52,7 +37,8 @@ export default function Tools() {
     if (!base64) { dispatch(setError('Please enter Base64')); return }
     dispatch(setLoading(true))
     try {
-      const { data } = await api.post('/v1/tools/base64/decode', { value: base64 })
+      const b64 = base64.replace(/\s+/g, '')
+      const { data } = await api.post('/v1/tools/base64/decode', { value: b64 })
       setText(data.text)
       dispatch(setError(''))
       dispatch(openSnackbar({ message: 'Decoded successfully', severity: 'success' }))
@@ -102,22 +88,6 @@ export default function Tools() {
   const jsonValidate = () => {
     try { JSON.parse(jsonInput); dispatch(setError('')); dispatch(openSnackbar({ message: 'Valid JSON', severity: 'success' })) } catch { dispatch(setError('Invalid JSON')) }
   }
-  const yamlToJson = () => {
-    try {
-      const obj = yaml.load(normalize(yamlInput))
-      setYamlOutput(JSON.stringify(obj, null, 2))
-      dispatch(setError(''))
-      dispatch(openSnackbar({ message: 'YAML → JSON done', severity: 'success' }))
-    } catch (e: any) { dispatch(setError('YAML parse failed: ' + (e?.message || ''))) }
-  }
-  const jsonToYaml = () => {
-    try {
-      const obj = JSON.parse(normalize(yamlInput))
-      setYamlOutput(yaml.dump(obj))
-      dispatch(setError(''))
-      dispatch(openSnackbar({ message: 'JSON → YAML done', severity: 'success' }))
-    } catch (e: any) { dispatch(setError('JSON parse failed: ' + (e?.message || ''))) }
-  }
   const tsToIso = () => {
     if (!tsInput) { dispatch(setError('Please enter timestamp')); return }
     const n = Number(tsInput)
@@ -139,25 +109,6 @@ export default function Tools() {
     dispatch(setError(''))
     dispatch(openSnackbar({ message: 'Converted to timestamp', severity: 'success' }))
   }
-  const jsonYamlAuto = () => {
-    const s = normalize(yamlInput)
-    try {
-      const obj = JSON.parse(s)
-      setYamlOutput(yaml.dump(obj))
-      dispatch(setError(''))
-      dispatch(openSnackbar({ message: 'Auto: JSON → YAML', severity: 'success' }))
-      return
-    } catch {}
-    try {
-      const obj = yaml.load(s) as any
-      setYamlOutput(JSON.stringify(obj, null, 2))
-      dispatch(setError(''))
-      dispatch(openSnackbar({ message: 'Auto: YAML → JSON', severity: 'success' }))
-      return
-    } catch (e: any) {
-      dispatch(setError('Input is neither valid JSON nor YAML: ' + (e?.message || '')))
-    }
-  }
   return (
     <Container sx={{ mt: 4 }}>
       <Typography variant="h5" gutterBottom>Tools: Encoding and Conversion</Typography>
@@ -168,10 +119,8 @@ export default function Tools() {
           <MenuItem value="base64">Base64</MenuItem>
           <MenuItem value="url">URL Encode/Decode</MenuItem>
           <MenuItem value="unicode">Unicode Escape/Unescape</MenuItem>
-          <MenuItem value="json">JSON Format/Minify/Validate</MenuItem>
-          <MenuItem value="yamljson">YAML ↔ JSON</MenuItem>
           <MenuItem value="time">Unix Time ↔ ISO</MenuItem>
-          <MenuItem value="ipgeo">IP Geolocation</MenuItem>
+          
         </Select>
       </FormControl>
       <Grid container spacing={4}>
@@ -221,34 +170,6 @@ export default function Tools() {
           </Card>
         </Grid>
         )}
-        {activeTool === 'json' && (
-        <Grid item xs={12} md={12}>
-          <Card sx={{ bgcolor: 'rgba(255,255,255,0.06)', transition: 'transform .2s', '&:hover': { transform: 'translateY(-4px)' } }}>
-            <CardContent sx={{ p: 3 }}>
-              <Typography variant="h6"><DataObject sx={{ mr:1, verticalAlign: 'middle' }} />JSON Format/Minify/Validate</Typography>
-              <BigText label="JSON Input" value={jsonInput} onChange={v=>{ setJsonInput(v); dispatch(setError('')) }} onExecute={jsonPretty} />
-              <Button sx={{ mt:1, mr:1 }} variant="contained" disabled={loading} onClick={jsonPretty}>Pretty</Button>
-              <Button sx={{ mt:1, mr:1 }} variant="outlined" disabled={loading} onClick={jsonMinify}>Minify</Button>
-              <Button sx={{ mt:1 }} variant="outlined" disabled={loading} onClick={jsonValidate}>Validate</Button>
-              <BigText label="Output" value={jsonOutput} readOnly downloadName={'output.json'} />
-            </CardContent>
-          </Card>
-        </Grid>
-        )}
-        {activeTool === 'yamljson' && (
-        <Grid item xs={12} md={12}>
-          <Card sx={{ bgcolor: 'rgba(255,255,255,0.06)', transition: 'transform .2s', '&:hover': { transform: 'translateY(-4px)' } }}>
-            <CardContent sx={{ p: 3 }}>
-              <Typography variant="h6"><SyncAlt sx={{ mr:1, verticalAlign: 'middle' }} />YAML ↔ JSON</Typography>
-              <BigText label="Input (YAML or JSON)" value={yamlInput} onChange={v=>{ setYamlInput(v); dispatch(setError('')) }} onExecute={jsonYamlAuto} />
-              <Button sx={{ mt:1, mr:1 }} variant="contained" disabled={loading} onClick={yamlToJson}>YAML → JSON</Button>
-              <Button sx={{ mt:1, mr:1 }} variant="outlined" disabled={loading} onClick={jsonToYaml}>JSON → YAML</Button>
-              <Button sx={{ mt:1 }} variant="outlined" disabled={loading} onClick={jsonYamlAuto}>Auto Detect</Button>
-              <BigText label="Output" value={yamlOutput} readOnly downloadName={'output.yaml'} />
-            </CardContent>
-          </Card>
-        </Grid>
-        )}
         {activeTool === 'time' && (
         <Grid item xs={12} md={6}>
           <Card sx={{ bgcolor: 'rgba(255,255,255,0.06)', transition: 'transform .2s', '&:hover': { transform: 'translateY(-4px)' } }}>
@@ -271,49 +192,8 @@ export default function Tools() {
           </Card>
         </Grid>
         )}
-        {activeTool === 'ipgeo' && (
-        <Grid item xs={12} md={8}>
-          <Card sx={{ bgcolor: 'rgba(255,255,255,0.06)', transition: 'transform .2s', '&:hover': { transform: 'translateY(-4px)' } }}>
-            <CardContent>
-              <Typography variant="h6"><Public sx={{ mr:1, verticalAlign:'middle' }} />IP Geolocation (ipinfo.io)</Typography>
-              <TextField sx={{ mt:1 }} label="IP (leave empty to use client IP)" value={ipInput} onChange={e=>setIpInput(e.target.value)} fullWidth />
-              <Button sx={{ mt:1 }} variant="contained" onClick={ipLookup}>Lookup</Button>
-              {ipRes && (
-                <>
-                  <Grid container spacing={2} sx={{ mt:2 }}>
-                    <Grid item xs={12} md={6}>
-                      <Typography sx={{ fontWeight: 700 }}><Place sx={{ mr:1, verticalAlign:'middle' }} />Location</Typography>
-                      <Typography sx={{ opacity:.9 }}>City: {ipRes.city} | Region: {ipRes.region}</Typography>
-                      <Typography sx={{ opacity:.9 }}>Country: {ipRes.country} ({ipRes.country_code})</Typography>
-                      <Typography sx={{ opacity:.9 }}>Lat/Lon: {ipRes.latitude}, {ipRes.longitude}</Typography>
-                      <Typography sx={{ opacity:.9 }}>Timezone: {ipRes.timezone}</Typography>
-                    </Grid>
-                    <Grid item xs={12} md={6}>
-                      <Typography sx={{ fontWeight: 700 }}>Network</Typography>
-                      <Typography sx={{ opacity:.9 }}>IP: {ipRes.ip}</Typography>
-                      <Typography sx={{ opacity:.9 }}>Hostname: {ipRes.hostname || '-'}</Typography>
-                      <Typography sx={{ opacity:.9 }}>Org: {ipRes.org}</Typography>
-                      <Typography sx={{ opacity:.9 }}>ASN: {ipRes.asn || '-'}</Typography>
-                      <Typography sx={{ opacity:.9 }}>Postal: {ipRes.postal || '-'}</Typography>
-                      <Typography sx={{ opacity:.9 }}>Anycast: {String(ipRes.anycast)}</Typography>
-                      {ipRes.latitude && ipRes.longitude && (
-                        <Button sx={{ mt:1 }} href={`https://www.google.com/maps?q=${ipRes.latitude},${ipRes.longitude}`} target="_blank">Open in Maps</Button>
-                      )}
-                    </Grid>
-                  </Grid>
-                </>
-              )}
-            </CardContent>
-          </Card>
-        </Grid>
-        )}
+        
       </Grid>
     </Container>
   )
 }
-  const normalize = (s: string) => s
-    .replace(/^[\uFEFF]/, '')
-    .replace(/[\u200B-\u200D\uFEFF]/g, '')
-    .replace(/[“”]/g, '"')
-    .replace(/[‘’]/g, "'")
-    .trim()

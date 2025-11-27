@@ -44,7 +44,7 @@ export default function Crypto() {
     if (!key || !plaintext) { dispatch(setError('Please enter key and plaintext')); return }
     dispatch(setLoading(true))
     try {
-      const { data } = await api.post('/v1/crypto/aes/encrypt', { key, plaintext })
+      const { data } = await api.post('/v1/crypto/aes/encrypt', { key: key.replace(/\s+/g, ''), plaintext })
       setNonce(data.nonce); setCipher(data.cipher); dispatch(setError(''))
     } catch { dispatch(setError('Encryption failed')) } finally { dispatch(setLoading(false)) }
   }
@@ -52,7 +52,7 @@ export default function Crypto() {
     if (!key || !nonce || !cipher) { dispatch(setError('Please enter key, nonce and ciphertext')); return }
     dispatch(setLoading(true))
     try {
-      const { data } = await api.post('/v1/crypto/aes/decrypt', { key, nonce, cipher })
+      const { data } = await api.post('/v1/crypto/aes/decrypt', { key: key.replace(/\s+/g, ''), nonce: nonce.replace(/\s+/g, ''), cipher: cipher.replace(/\s+/g, '') })
       setPlaintext(data.plaintext); dispatch(setError(''))
     } catch { dispatch(setError('Decryption failed')) } finally { dispatch(setLoading(false)) }
   }
@@ -60,7 +60,7 @@ export default function Crypto() {
     if (!key || !plaintext) { dispatch(setError('Please enter key and plaintext')); return }
     dispatch(setLoading(true))
     try {
-      const { data } = await api.post('/v1/crypto/aes/cbc/encrypt', { key, plaintext, iv })
+      const { data } = await api.post('/v1/crypto/aes/cbc/encrypt', { key: key.replace(/\s+/g, ''), plaintext, iv: iv ? iv.replace(/\s+/g, '') : '' })
       setIv(data.iv); setCipher(data.cipher); dispatch(setError(''))
     } catch { dispatch(setError('AES-CBC encryption failed')) } finally { dispatch(setLoading(false)) }
   }
@@ -68,7 +68,7 @@ export default function Crypto() {
     if (!key || !iv || !cipher) { dispatch(setError('Please enter key, iv and ciphertext')); return }
     dispatch(setLoading(true))
     try {
-      const { data } = await api.post('/v1/crypto/aes/cbc/decrypt', { key, iv, cipher })
+      const { data } = await api.post('/v1/crypto/aes/cbc/decrypt', { key: key.replace(/\s+/g, ''), iv: iv.replace(/\s+/g, ''), cipher: cipher.replace(/\s+/g, '') })
       setPlaintext(data.plaintext); dispatch(setError(''))
     } catch { dispatch(setError('AES-CBC decryption failed')) } finally { dispatch(setLoading(false)) }
   }
@@ -76,7 +76,7 @@ export default function Crypto() {
     if (!key || !plaintext) { dispatch(setError('Please enter key and plaintext')); return }
     dispatch(setLoading(true))
     try {
-      const { data } = await api.post('/v1/crypto/chacha/encrypt', { key, plaintext, nonce })
+      const { data } = await api.post('/v1/crypto/chacha/encrypt', { key: key.replace(/\s+/g, ''), plaintext, nonce: nonce ? nonce.replace(/\s+/g, '') : '' })
       setNonce(data.nonce); setCipher(data.cipher); dispatch(setError(''))
     } catch { dispatch(setError('ChaCha20-Poly1305 encryption failed')) } finally { dispatch(setLoading(false)) }
   }
@@ -84,7 +84,7 @@ export default function Crypto() {
     if (!key || !nonce || !cipher) { dispatch(setError('Please enter key, nonce and ciphertext')); return }
     dispatch(setLoading(true))
     try {
-      const { data } = await api.post('/v1/crypto/chacha/decrypt', { key, nonce, cipher })
+      const { data } = await api.post('/v1/crypto/chacha/decrypt', { key: key.replace(/\s+/g, ''), nonce: nonce.replace(/\s+/g, ''), cipher: cipher.replace(/\s+/g, '') })
       setPlaintext(data.plaintext); dispatch(setError(''))
     } catch { dispatch(setError('ChaCha20-Poly1305 decryption failed')) } finally { dispatch(setLoading(false)) }
   }
@@ -92,7 +92,7 @@ export default function Crypto() {
     if (!hmacKey || !hmacInput) { dispatch(setError('Please enter key and input')); return }
     dispatch(setLoading(true))
     try {
-      const { data } = await api.post('/v1/crypto/hmac/calc', { alg: hmacAlg, key: hmacKey, data: hmacInput })
+      const { data } = await api.post('/v1/crypto/hmac/calc', { alg: hmacAlg, key: hmacKey.replace(/\s+/g, ''), data: hmacInput })
       setHmacOut(data.hex); dispatch(setError(''))
     } catch { dispatch(setError('HMAC failed')) } finally { dispatch(setLoading(false)) }
   }
@@ -100,7 +100,7 @@ export default function Crypto() {
     if (!pbPassword) { dispatch(setError('Please enter password')); return }
     dispatch(setLoading(true))
     try {
-      const { data } = await api.post('/v1/crypto/pbkdf2/derive', { password: pbPassword, salt: pbSalt, iter: pbIter, dkLen: pbDkLen, alg: pbAlg })
+      const { data } = await api.post('/v1/crypto/pbkdf2/derive', { password: pbPassword, salt: pbSalt ? pbSalt.replace(/\s+/g, '') : '', iter: pbIter, dkLen: pbDkLen, alg: pbAlg })
       setPbOutSalt(data.salt); setPbOutKey(data.key); dispatch(setError(''))
     } catch { dispatch(setError('PBKDF2 failed')) } finally { dispatch(setLoading(false)) }
   }
@@ -131,7 +131,7 @@ export default function Crypto() {
     if (!pubKey || !rsaPlain) { dispatch(setError('Please enter public key and plaintext')); return }
     dispatch(setLoading(true))
     try {
-      const { data } = await api.post('/v1/crypto/rsa/encrypt', { key: pubKey, data: rsaPlain })
+      const { data } = await api.post('/v1/crypto/rsa/encrypt', { key: pubKey.trim(), data: rsaPlain })
       setRsaCipher(data.cipher); dispatch(setError(''))
     } catch { dispatch(setError('RSA encryption failed')) } finally { dispatch(setLoading(false)) }
   }
@@ -139,7 +139,7 @@ export default function Crypto() {
     if (!privKey || !rsaCipher) { dispatch(setError('Please enter private key and ciphertext')); return }
     dispatch(setLoading(true))
     try {
-      const { data } = await api.post('/v1/crypto/rsa/decrypt', { key: privKey, data: rsaCipher })
+      const { data } = await api.post('/v1/crypto/rsa/decrypt', { key: privKey.trim(), data: rsaCipher })
       setRsaPlain(data.plaintext); dispatch(setError(''))
     } catch { dispatch(setError('RSA decryption failed')) } finally { dispatch(setLoading(false)) }
   }

@@ -38,6 +38,8 @@ func New(cfg *config.Config, log *zap.Logger, db *gorm.DB) *gin.Engine {
     v1.POST("/tools/base64/encode", controller.Base64Encode())
     v1.POST("/tools/base64/decode", controller.Base64Decode())
     v1.GET("/tools/ip/geo", controller.IPGeo(geoSvc))
+    v1.GET("/tools/dns/resolve", controller.DNSResolve())
+    v1.GET("/tools/domain/whois", controller.DomainWhois())
 
     v1.POST("/crypto/aes/encrypt", controller.AesEncrypt())
     v1.POST("/crypto/aes/decrypt", controller.AesDecrypt())

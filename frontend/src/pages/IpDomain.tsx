@@ -18,7 +18,7 @@ export default function IpDomain() {
   const [dnsType, setDnsType] = useState<'A'|'AAAA'|'CNAME'|'MX'|'TXT'|'NS'>('A')
   const [dnsRes, setDnsRes] = useState<any[]>([])
   const [whoisName, setWhoisName] = useState('')
-  const [whoisOut, setWhoisOut] = useState('')
+  const [whoisInfo, setWhoisInfo] = useState<any>(null)
   const ipLookup = async () => {
     dispatch(setLoading(true))
     try {
@@ -47,7 +47,7 @@ export default function IpDomain() {
     try {
       const clean = (s: string) => { let h = s.trim(); if (!h) return ''; if (h.startsWith('http://') || h.startsWith('https://')) h = h.replace(/^https?:\/\//, ''); h = h.split('/')[0]; return h }
       const { data } = await api.get('/v1/tools/domain/whois', { params: { name: clean(whoisName) } })
-      setWhoisOut((data?.raw || data?.text || '') as string)
+      setWhoisInfo(data)
       dispatch(setError(''))
       dispatch(openSnackbar({ message: 'WHOIS fetched', severity: 'success' }))
     } catch { dispatch(setError('WHOIS lookup failed')) } finally { dispatch(setLoading(false)) }
@@ -158,7 +158,23 @@ export default function IpDomain() {
               <Typography variant="h6">WHOIS</Typography>
               <TextField sx={{ mt:1 }} label="Domain" value={whoisName} onChange={e=>setWhoisName(e.target.value)} fullWidth />
               <Button sx={{ mt:1 }} variant="contained" disabled={loading} onClick={whoisLookup}>Lookup WHOIS</Button>
-              {whoisOut && <BigText label="WHOIS Raw" value={whoisOut} readOnly downloadName={'whois.txt'} />}
+              {whoisInfo && (
+                <TableContainer component={Paper} sx={{ mt:2, background:'rgba(255,255,255,0.06)' }}>
+                  <Table size="small">
+                    <TableBody>
+                      <TableRow><TableCell>Domain</TableCell><TableCell>{whoisInfo.name || '-'}</TableCell></TableRow>
+                      <TableRow><TableCell>Registrar</TableCell><TableCell>{whoisInfo.registrar || '-'}</TableCell></TableRow>
+                      <TableRow><TableCell>Registrar URL</TableCell><TableCell>{whoisInfo.registrar_url || '-'}</TableCell></TableRow>
+                      <TableRow><TableCell>Created</TableCell><TableCell>{whoisInfo.created || '-'}</TableCell></TableRow>
+                      <TableRow><TableCell>Updated</TableCell><TableCell>{whoisInfo.updated || '-'}</TableCell></TableRow>
+                      <TableRow><TableCell>Expires</TableCell><TableCell>{whoisInfo.expires || '-'}</TableCell></TableRow>
+                      <TableRow><TableCell>Status</TableCell><TableCell>{Array.isArray(whoisInfo.status)&&whoisInfo.status.length? whoisInfo.status.join(', ') : '-'}</TableCell></TableRow>
+                      <TableRow><TableCell>Name Servers</TableCell><TableCell>{Array.isArray(whoisInfo.name_servers)&&whoisInfo.name_servers.length? whoisInfo.name_servers.join(', ') : '-'}</TableCell></TableRow>
+                      <TableRow><TableCell>WHOIS Server</TableCell><TableCell>{whoisInfo.server || '-'}</TableCell></TableRow>
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
             </CardContent>
           </Card>
         </Grid>

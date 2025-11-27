@@ -9,6 +9,7 @@ import (
     "engtools/backend/internal/service"
     "net"
     "net/url"
+    "regexp"
     "strings"
     "time"
 )
@@ -136,7 +137,11 @@ func DomainWhois() gin.HandlerFunc {
                 text = text + "\n\n--- Referral ---\n" + t2
             }
         }
-        c.JSON(200, gin.H{"server": server, "raw": text})
+        cleaned := cleanWhoisText(text)
+        info := parseWhoisInfo(cleaned)
+        info.Name = name
+        info.Server = server
+        c.JSON(200, info)
     }
 }
 
@@ -207,4 +212,74 @@ func whoisQuery(ctx context.Context, server, query string) (string, error) {
         if err != nil { break }
     }
     return b.String(), nil
+}
+
+type WhoisInfo struct {
+    Server      string   `json:"server"`
+    Name        string   `json:"name"`
+    Registrar   string   `json:"registrar"`
+    RegistrarURL string  `json:"registrar_url"`
+    Updated     string   `json:"updated"`
+    Created     string   `json:"created"`
+    Expires     string   `json:"expires"`
+    Status      []string `json:"status"`
+    NameServers []string `json:"name_servers"`
+}
+
+func cleanWhoisText(s string) string {
+    lines := strings.Split(s, "\n")
+    out := make([]string, 0, len(lines))
+    skipPrefixes := []string{"%", "#", ">>>", "NOTICE", "TERMS OF USE", "The Registry", "For more information"}
+    for _, ln := range lines {
+        t := strings.TrimSpace(ln)
+        if t == "" { continue }
+        low := strings.ToLower(t)
+        skip := false
+        for _, p := range skipPrefixes {
+            if strings.HasPrefix(t, p) { skip = true; break }
+        }
+        if strings.HasPrefix(low, "query rate") || strings.HasPrefix(low, "whois server version") {
+            skip = true
+        }
+        if !skip { out = append(out, ln) }
+    }
+    return strings.Join(out, "\n")
+}
+
+func parseWhoisInfo(s string) WhoisInfo {
+    info := WhoisInfo{}
+    lines := strings.Split(s, "\n")
+    reKV := regexp.MustCompile(`^\s*([A-Za-z0-9 ._-]+):\s*(.+)$`)
+    for _, ln := range lines {
+        m := reKV.FindStringSubmatch(ln)
+        if m == nil { continue }
+        key := strings.ToLower(strings.TrimSpace(m[1]))
+        val := strings.TrimSpace(m[2])
+        switch key {
+        case "domain name", "domain":
+            info.Name = val
+        case "registrar", "sponsoring registrar":
+            info.Registrar = val
+        case "registrar url":
+            info.RegistrarURL = val
+        case "updated date", "last updated", "last update":
+            info.Updated = val
+        case "creation date", "created":
+            info.Created = val
+        case "registry expiry date", "expiration date", "expires", "expiry date":
+            info.Expires = val
+        case "domain status", "status":
+            info.Status = append(info.Status, val)
+        case "name server", "nserver":
+            info.NameServers = append(info.NameServers, strings.Fields(val)[0])
+        }
+    }
+    // dedupe name servers
+    if len(info.NameServers) > 1 {
+        seen := map[string]struct{}{}
+        ns := make([]string, 0, len(info.NameServers))
+        for _, n := range info.NameServers { if _, ok := seen[n]; !ok { seen[n] = struct{}{}; ns = append(ns, n) } }
+        info.NameServers = ns
+    }
+    return info
 }

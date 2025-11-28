@@ -1,5 +1,5 @@
-import { Container, Typography, Grid, TextField, Button, Alert, Card, CardContent, FormControl, InputLabel, Select, MenuItem } from '@mui/material'
-import { Link as LinkIcon, Code as CodeIcon, AccessTime } from '@mui/icons-material'
+import { Container, Typography, Grid, TextField, Button, Alert, Card, CardContent, FormControl, InputLabel, Select, MenuItem, Table, TableBody, TableCell, TableHead, TableRow, TableContainer, Paper, Box } from '@mui/material'
+import { Link as LinkIcon, Code as CodeIcon, AccessTime, FindInPage } from '@mui/icons-material'
 import BigText from '../components/BigText'
 import { useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
@@ -22,7 +22,13 @@ export default function Tools() {
   const [tsInput, setTsInput] = useState('')
   const [isoInput, setIsoInput] = useState('')
   const [timeZone, setTimeZone] = useState('UTC')
-  const [activeTool, setActiveTool] = useState<'base64' | 'url' | 'unicode' | 'time'>('base64')
+  const [activeTool, setActiveTool] = useState<'base64' | 'url' | 'unicode' | 'time' | 'regex'>('base64')
+  const [rePattern, setRePattern] = useState('')
+  const [reFlags, setReFlags] = useState('g')
+  const [reInput, setReInput] = useState('')
+  const [reReplace, setReReplace] = useState('')
+  const [reOutput, setReOutput] = useState('')
+  const [reMatches, setReMatches] = useState<any[]>([])
   const encode = async () => {
     if (!text) { dispatch(setError('Please enter text')); return }
     dispatch(setLoading(true))
@@ -79,6 +85,28 @@ export default function Tools() {
       dispatch(openSnackbar({ message: 'Unescaped', severity: 'success' }))
     } catch { dispatch(setError('Unescape failed')) }
   }
+  const regexTest = () => {
+    if (!rePattern) { dispatch(setError('Please enter pattern')); return }
+    try {
+      const flags = Array.from(new Set((reFlags || '').split('').filter(f => 'gimsuy'.includes(f)))).join('')
+      const rx = new RegExp(rePattern, flags)
+      const matches: any[] = []
+      if (flags.includes('g')) {
+        let m
+        while ((m = rx.exec(reInput)) !== null) {
+          matches.push({ index: m.index, match: m[0], groups: m.groups || {}, captures: m.slice(1) })
+          if (m[0] === '') { rx.lastIndex++ }
+        }
+      } else {
+        const m = rx.exec(reInput)
+        if (m) matches.push({ index: m.index, match: m[0], groups: m.groups || {}, captures: m.slice(1) })
+      }
+      setReMatches(matches)
+      setReOutput(reReplace ? reInput.replace(rx, reReplace) : '')
+      dispatch(setError(''))
+      dispatch(openSnackbar({ message: 'Regex tested', severity: 'success' }))
+    } catch { dispatch(setError('Invalid pattern/flags')) }
+  }
   const jsonPretty = () => {
     try { const obj = JSON.parse(jsonInput); setJsonOutput(JSON.stringify(obj, null, 2)); dispatch(setError('')); dispatch(openSnackbar({ message: 'Pretty printed', severity: 'success' })) } catch { dispatch(setError('Invalid JSON')) }
   }
@@ -119,6 +147,7 @@ export default function Tools() {
           <MenuItem value="base64">Base64</MenuItem>
           <MenuItem value="url">URL Encode/Decode</MenuItem>
           <MenuItem value="unicode">Unicode Escape/Unescape</MenuItem>
+          <MenuItem value="regex">Regex Tester</MenuItem>
           <MenuItem value="time">Unix Time ↔ ISO</MenuItem>
           
         </Select>
@@ -130,6 +159,95 @@ export default function Tools() {
             <CardContent sx={{ p: 3 }}>
               <BigText label="Text" value={text} onChange={v=>{ setText(v); dispatch(setError('')) }} onExecute={encode} />
               <Button sx={{ mt: 1 }} variant="contained" disabled={loading} onClick={encode}>Encode to Base64</Button>
+            </CardContent>
+          </Card>
+        </Grid>
+        )}
+        {activeTool === 'regex' && (
+        <Grid item xs={12} md={12}>
+          <Card sx={{ bgcolor: 'rgba(255,255,255,0.06)', transition: 'transform .2s', '&:hover': { transform: 'translateY(-4px)' } }}>
+            <CardContent sx={{ p:3 }}>
+              <Typography variant="h6"><FindInPage sx={{ mr:1, verticalAlign:'middle' }} />Regex Tester</Typography>
+              <Grid container spacing={2} sx={{ mt:1 }}>
+                <Grid item xs={12} md={6}><TextField label="Pattern" value={rePattern} onChange={e=>setRePattern(e.target.value)} fullWidth /></Grid>
+                <Grid item xs={12} md={6}><TextField label="Flags (g i m s u y)" value={reFlags} onChange={e=>setReFlags(e.target.value)} fullWidth /></Grid>
+              </Grid>
+              <BigText label="Input" value={reInput} onChange={v=>{ setReInput(v); dispatch(setError('')) }} onExecute={regexTest} />
+              <Grid container spacing={2} sx={{ mt:1 }}>
+                <Grid item><Button variant="contained" disabled={loading} onClick={regexTest}>Test</Button></Grid>
+                <Grid item xs={12} md={6}><TextField label="Replacement" value={reReplace} onChange={e=>setReReplace(e.target.value)} fullWidth /></Grid>
+              </Grid>
+              {reOutput && <BigText label="Replaced Output" value={reOutput} readOnly downloadName={'replaced.txt'} />}
+              {reMatches && reMatches.length>0 && (
+                <TableContainer component={Paper} sx={{ mt:2, background:'rgba(255,255,255,0.06)' }}>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>#</TableCell>
+                        <TableCell>Index</TableCell>
+                        <TableCell>Match</TableCell>
+                        <TableCell>Captures</TableCell>
+                        <TableCell>Groups</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {reMatches.map((m:any, idx:number)=> (
+                        <TableRow key={idx}>
+                          <TableCell>{idx}</TableCell>
+                          <TableCell>{m.index}</TableCell>
+                          <TableCell sx={{ fontFamily:'monospace' }}>{m.match}</TableCell>
+                          <TableCell sx={{ fontFamily:'monospace' }}>{Array.isArray(m.captures)&&m.captures.length? m.captures.join(' | ') : '-'}</TableCell>
+                          <TableCell sx={{ fontFamily:'monospace' }}>{m.groups && Object.keys(m.groups).length ? Object.entries(m.groups).map(([k,v])=>`${k}=${v}`).join(', ') : '-'}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+              <TableContainer component={Paper} sx={{ mt:2, background:'rgba(255,255,255,0.06)' }}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Topic</TableCell>
+                      <TableCell>Summary</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    <TableRow>
+                      <TableCell>Flags</TableCell>
+                      <TableCell sx={{ fontFamily:'monospace' }}>{"g: global | i: ignore case | m: multiline (^/$) | s: dotAll | u: Unicode | y: sticky"}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>Classes</TableCell>
+                      <TableCell sx={{ fontFamily:'monospace' }}>{"\\d \\w \\s \\D \\W \\S . [a-z] [^...] \\b \\B"}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>Quantifiers</TableCell>
+                      <TableCell sx={{ fontFamily:'monospace' }}>{"* + ? {n} {n,} {n,m}  (lazy: .*?)"}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>Anchors</TableCell>
+                      <TableCell sx={{ fontFamily:'monospace' }}>{"^ start | $ end | \\b word-boundary | \\B non-boundary"}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>Groups</TableCell>
+                      <TableCell sx={{ fontFamily:'monospace' }}>{"(...) capture | (?:...) non-capture | backref \\1 \\2 | named (?<name>...) | replacement $<name>"}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>Lookaround</TableCell>
+                      <TableCell sx={{ fontFamily:'monospace' }}>{"(?=...) | (?!...) | (?<=...) | (?<!...)"}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>Unicode</TableCell>
+                      <TableCell sx={{ fontFamily:'monospace' }}>{"flag u for \\p{Letter}, \\p{Script=Han}; escapes: \\xNN, \\uNNNN"}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>Replacement</TableCell>
+                      <TableCell sx={{ fontFamily:'monospace' }}>{"String.replace: $1 $2 ... and $<name> | function replacer supported"}</TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </TableContainer>
             </CardContent>
           </Card>
         </Grid>

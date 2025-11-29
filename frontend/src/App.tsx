@@ -4,6 +4,7 @@ import { ThemeProvider, createTheme } from '@mui/material/styles'
 import Loader from './components/Loader'
 import Tools from './pages/Tools'
 import Json from './pages/Json'
+import TextTools from './pages/Text'
 import Crypto from './pages/Crypto'
 import Cert from './pages/Cert'
 import IpDomain from './pages/IpDomain'
@@ -85,7 +86,7 @@ const theme = createTheme({
 })
 
 export default function App() {
-  const [tab, setTab] = useState<'tools' | 'json' | 'ipdom' | 'crypto' | 'cert'>('tools')
+  const [tab, setTab] = useState<'tools' | 'json' | 'text' | 'ipdom' | 'crypto' | 'cert'>('tools')
   const snackbar = useSelector((s: RootState) => s.ui.snackbar)
   return (
     <ThemeProvider theme={theme}>
@@ -106,11 +107,12 @@ export default function App() {
           <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2 }}>
             <Tab label="Tools" value="tools" />
             <Tab label="JSON" value="json" />
+            <Tab label="Text" value="text" />
             <Tab label="IP&Domain" value="ipdom" />
             <Tab label="Crypto" value="crypto" />
             <Tab label="Cert" value="cert" />
           </Tabs>
-          {tab==='tools'? <Tools/> : tab==='json' ? <Json/> : tab==='ipdom' ? <IpDomain/> : tab==='crypto' ? <Crypto/> : <Cert/>}
+          {tab==='tools'? <Tools/> : tab==='json' ? <Json/> : tab==='text' ? <TextTools/> : tab==='ipdom' ? <IpDomain/> : tab==='crypto' ? <Crypto/> : <Cert/>}
         </Container>
         <Snackbar open={snackbar.open} autoHideDuration={3000}>
           <Alert severity={snackbar.severity} sx={{ width: '100%' }}>{snackbar.message}</Alert>

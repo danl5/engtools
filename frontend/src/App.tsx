@@ -104,7 +104,7 @@ export default function App() {
         </Box>
         <Loader />
         <Container maxWidth="xl" sx={{ mt: 4, pb: 6 }}>
-          <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2 }}>
+          <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2 }} variant="scrollable" scrollButtons="auto" allowScrollButtonsMobile>
             <Tab label="Tools" value="tools" />
             <Tab label="JSON" value="json" />
             <Tab label="Text" value="text" />

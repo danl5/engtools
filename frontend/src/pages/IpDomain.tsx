@@ -1,11 +1,10 @@
-import { Container, Typography, Grid, TextField, Button, Alert, Card, CardContent, MenuItem, Select, FormControl, InputLabel, Table, TableBody, TableCell, TableHead, TableRow, TableContainer, Paper } from '@mui/material'
+import { Container, Typography, Grid, TextField, Button, Alert, Card, CardContent, MenuItem, Select, FormControl, InputLabel, Table, TableBody, TableCell, TableHead, TableRow, TableContainer, Paper, Box } from '@mui/material'
 import { Public, Place } from '@mui/icons-material'
 import { useDispatch, useSelector } from 'react-redux'
 import { RootState } from '../store'
 import { setLoading, setError, openSnackbar } from '../store'
 import { useState } from 'react'
 import api from '../api'
-import BigText from '../components/BigText'
 
 export default function IpDomain() {
   const dispatch = useDispatch()
@@ -13,12 +12,16 @@ export default function IpDomain() {
   const loading = useSelector((s: RootState) => s.ui.loading)
   const [ipInput, setIpInput] = useState('')
   const [ipRes, setIpRes] = useState<any>(null)
-  const [active, setActive] = useState<'ipgeo'|'dns'|'whois'>('ipgeo')
+  const [active, setActive] = useState<'ipgeo'|'dns'|'whois'|'dig'>('ipgeo')
   const [dnsName, setDnsName] = useState('')
   const [dnsType, setDnsType] = useState<'A'|'AAAA'|'CNAME'|'MX'|'TXT'|'NS'>('A')
   const [dnsRes, setDnsRes] = useState<any[]>([])
   const [whoisName, setWhoisName] = useState('')
   const [whoisInfo, setWhoisInfo] = useState<any>(null)
+  const [digName, setDigName] = useState('')
+  const [digType, setDigType] = useState<'A'|'AAAA'|'CNAME'|'MX'|'TXT'|'NS'>('A')
+  const [digProvider, setDigProvider] = useState<'cf'|'cn'>('cf')
+  const [digRes, setDigRes] = useState<any>(null)
   const ipLookup = async () => {
     dispatch(setLoading(true))
     try {
@@ -52,6 +55,17 @@ export default function IpDomain() {
       dispatch(openSnackbar({ message: 'WHOIS fetched', severity: 'success' }))
     } catch { dispatch(setError('WHOIS lookup failed')) } finally { dispatch(setLoading(false)) }
   }
+  const digLookup = async () => {
+    if (!digName) { dispatch(setError('Please enter domain/host')); return }
+    dispatch(setLoading(true))
+    try {
+      const clean = (s: string) => { let h = s.trim(); if (!h) return ''; if (h.startsWith('http://') || h.startsWith('https://')) h = h.replace(/^https?:\/\//, ''); h = h.split('/')[0]; return h }
+      const { data } = await api.get('/v1/tools/dns/dig', { params: { name: clean(digName), type: digType, provider: digProvider } })
+      setDigRes(data)
+      dispatch(setError(''))
+      dispatch(openSnackbar({ message: 'Dig done', severity: 'success' }))
+    } catch { dispatch(setError('Dig failed')) } finally { dispatch(setLoading(false)) }
+  }
   return (
     <Container sx={{ mt: 4 }}>
       <Typography variant="h5" gutterBottom>IP & Domain Tools</Typography>
@@ -62,6 +76,7 @@ export default function IpDomain() {
           <MenuItem value="ipgeo">IP Geolocation</MenuItem>
           <MenuItem value="dns">DNS Resolve</MenuItem>
           <MenuItem value="whois">WHOIS</MenuItem>
+          <MenuItem value="dig">Dig (authority)</MenuItem>
         </Select>
       </FormControl>
       <Grid container spacing={4}>
@@ -174,6 +189,79 @@ export default function IpDomain() {
                     </TableBody>
                   </Table>
                 </TableContainer>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+        )}
+        {active==='dig' && (
+        <Grid item xs={12} md={10}>
+          <Card sx={{ bgcolor: 'rgba(255,255,255,0.06)', transition: 'transform .2s', '&:hover': { transform: 'translateY(-4px)' } }}>
+            <CardContent>
+              <Typography variant="h6">Dig (Authority/Additional)</Typography>
+              <Grid container spacing={2} sx={{ mt:1 }}>
+                <Grid item xs={12} md={5}><TextField label="Domain/Host" value={digName} onChange={e=>setDigName(e.target.value)} fullWidth /></Grid>
+                <Grid item xs={12} md={3}>
+                  <FormControl fullWidth>
+                    <InputLabel id="dig-type">Type</InputLabel>
+                    <Select labelId="dig-type" label="Type" value={digType} onChange={e=>setDigType(e.target.value as any)}>
+                      <MenuItem value="A">A</MenuItem>
+                      <MenuItem value="AAAA">AAAA</MenuItem>
+                      <MenuItem value="CNAME">CNAME</MenuItem>
+                      <MenuItem value="MX">MX</MenuItem>
+                      <MenuItem value="TXT">TXT</MenuItem>
+                      <MenuItem value="NS">NS</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <FormControl fullWidth>
+                    <InputLabel id="dig-provider">Provider</InputLabel>
+                    <Select labelId="dig-provider" label="Provider" value={digProvider} onChange={e=>setDigProvider(e.target.value as any)}>
+                      <MenuItem value="cf">Cloudflare DoH</MenuItem>
+                      <MenuItem value="cn">CN recursive</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+              </Grid>
+              <Button sx={{ mt:1 }} variant="contained" disabled={loading} onClick={digLookup}>Query</Button>
+              {digRes && (
+                <Box sx={{ mt:2 }}>
+                  <Alert severity="info">Status: {digRes.status} | AD: {String(digRes.ad)} | CD: {String(digRes.cd)} | Provider: {digRes.provider}</Alert>
+                  <Typography sx={{ mt:2, fontWeight:700 }}>Question</Typography>
+                  <TableContainer component={Paper} sx={{ mt:1, background:'rgba(255,255,255,0.06)' }}>
+                    <Table size="small"><TableBody>
+                      <TableRow><TableCell>Name</TableCell><TableCell>{digRes.question?.name || '-'}</TableCell></TableRow>
+                      <TableRow><TableCell>Type</TableCell><TableCell>{digRes.question?.type || '-'}</TableCell></TableRow>
+                    </TableBody></Table></TableContainer>
+                  <Typography sx={{ mt:2, fontWeight:700 }}>Answer</Typography>
+                  {Array.isArray(digRes.answer)&&digRes.answer.length>0 ? (
+                    <TableContainer component={Paper} sx={{ mt:1, background:'rgba(255,255,255,0.06)' }}>
+                      <Table size="small"><TableHead><TableRow><TableCell>Name</TableCell><TableCell>Type</TableCell><TableCell>TTL</TableCell><TableCell>Data</TableCell></TableRow></TableHead>
+                      <TableBody>
+                        {digRes.answer.map((r:any, idx:number)=>(<TableRow key={idx}><TableCell>{r.name}</TableCell><TableCell>{r.type}</TableCell><TableCell>{r.ttl}</TableCell><TableCell>{r.data}</TableCell></TableRow>))}
+                      </TableBody></Table>
+                    </TableContainer>
+                  ) : <Typography sx={{ opacity:.8 }}>No answer records</Typography>}
+                  <Typography sx={{ mt:2, fontWeight:700 }}>Authority</Typography>
+                  {Array.isArray(digRes.authority)&&digRes.authority.length>0 ? (
+                    <TableContainer component={Paper} sx={{ mt:1, background:'rgba(255,255,255,0.06)' }}>
+                      <Table size="small"><TableHead><TableRow><TableCell>Name</TableCell><TableCell>Type</TableCell><TableCell>TTL</TableCell><TableCell>Data</TableCell></TableRow></TableHead>
+                      <TableBody>
+                        {digRes.authority.map((r:any, idx:number)=>(<TableRow key={idx}><TableCell>{r.name}</TableCell><TableCell>{r.type}</TableCell><TableCell>{r.ttl}</TableCell><TableCell>{r.data}</TableCell></TableRow>))}
+                      </TableBody></Table>
+                    </TableContainer>
+                  ) : <Typography sx={{ opacity:.8 }}>No authority records</Typography>}
+                  <Typography sx={{ mt:2, fontWeight:700 }}>Additional</Typography>
+                  {Array.isArray(digRes.additional)&&digRes.additional.length>0 ? (
+                    <TableContainer component={Paper} sx={{ mt:1, background:'rgba(255,255,255,0.06)' }}>
+                      <Table size="small"><TableHead><TableRow><TableCell>Name</TableCell><TableCell>Type</TableCell><TableCell>TTL</TableCell><TableCell>Data</TableCell></TableRow></TableHead>
+                      <TableBody>
+                        {digRes.additional.map((r:any, idx:number)=>(<TableRow key={idx}><TableCell>{r.name}</TableCell><TableCell>{r.type}</TableCell><TableCell>{r.ttl}</TableCell><TableCell>{r.data}</TableCell></TableRow>))}
+                      </TableBody></Table>
+                    </TableContainer>
+                  ) : <Typography sx={{ opacity:.8 }}>No additional records</Typography>}
+                </Box>
               )}
             </CardContent>
           </Card>

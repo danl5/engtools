@@ -237,6 +237,80 @@ func dnsResolveCN(ctx context.Context, name, typ string) []gin.H {
     return out
 }
 
+// DNSDig performs a detailed DNS query similar to 'dig' using DoH (Cloudflare) when available.
+// GET /api/v1/tools/dns/dig?name=example.com&type=A&provider=cf|cn
+func DNSDig() gin.HandlerFunc {
+    return func(c *gin.Context) {
+        name := sanitizeHost(c.Query("name"))
+        typ := strings.ToUpper(strings.TrimSpace(c.Query("type")))
+        if name == "" { c.JSON(400, gin.H{"error": "name required"}); return }
+        if typ == "" { typ = "A" }
+        provider := strings.ToLower(strings.TrimSpace(c.Query("provider")))
+        if provider == "" { provider = "cf" }
+        ctx, cancel := context.WithTimeout(c.Request.Context(), 6*time.Second)
+        defer cancel()
+        if provider == "cf" {
+            res, err := dnsDigDoHCF(ctx, name, typ)
+            if err != nil { log.Printf("dns dig doh cf error: %v", err); c.JSON(502, gin.H{"error": err.Error()}); return }
+            c.JSON(200, res)
+            return
+        }
+        // fallback basic dig using CN resolvers (answers only)
+        answers := dnsResolveCN(ctx, name, typ)
+        c.JSON(200, gin.H{
+            "provider": "cn",
+            "question": gin.H{"name": name, "type": typ},
+            "status": 0,
+            "ad": false,
+            "cd": false,
+            "answer": answers,
+            "authority": []gin.H{},
+            "additional": []gin.H{},
+        })
+    }
+}
+
+func dnsDigDoHCF(ctx context.Context, name, typ string) (gin.H, error) {
+    u := fmt.Sprintf("https://cloudflare-dns.com/dns-query?name=%s&type=%s", url.QueryEscape(name), url.QueryEscape(typ))
+    req, _ := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+    req.Header.Set("Accept", "application/dns-json")
+    client := &http.Client{ Timeout: 5 * time.Second }
+    resp, err := client.Do(req)
+    if err != nil { return nil, err }
+    defer resp.Body.Close()
+    b, _ := io.ReadAll(resp.Body)
+    if resp.StatusCode != 200 { return nil, fmt.Errorf("doh cf status %d: %s", resp.StatusCode, string(b)) }
+    var jr struct {
+        Status int `json:"Status"`
+        AD     bool `json:"AD"`
+        CD     bool `json:"CD"`
+        Question []struct { Name string `json:"name"`; Type int `json:"type"` } `json:"Question"`
+        Answer   []struct { Name string `json:"name"`; Type int `json:"type"`; TTL int `json:"TTL"`; Data string `json:"data"` } `json:"Answer"`
+        Authority []struct { Name string `json:"name"`; Type int `json:"type"`; TTL int `json:"TTL"`; Data string `json:"data"` } `json:"Authority"`
+        Additional []struct { Name string `json:"name"`; Type int `json:"type"`; TTL int `json:"TTL"`; Data string `json:"data"` } `json:"Additional"`
+    }
+    if err := json.Unmarshal(b, &jr); err != nil { return nil, err }
+    q := gin.H{"name": name, "type": typ}
+    if len(jr.Question) > 0 { q = gin.H{"name": jr.Question[0].Name, "type": rrTypeToName(jr.Question[0].Type)} }
+    // convert sections
+    ans := make([]gin.H, 0, len(jr.Answer))
+    for _, a := range jr.Answer { ans = append(ans, gin.H{"name": a.Name, "type": rrTypeToName(a.Type), "ttl": a.TTL, "data": a.Data}) }
+    auth := make([]gin.H, 0, len(jr.Authority))
+    for _, a := range jr.Authority { auth = append(auth, gin.H{"name": a.Name, "type": rrTypeToName(a.Type), "ttl": a.TTL, "data": a.Data}) }
+    add := make([]gin.H, 0, len(jr.Additional))
+    for _, a := range jr.Additional { add = append(add, gin.H{"name": a.Name, "type": rrTypeToName(a.Type), "ttl": a.TTL, "data": a.Data}) }
+    return gin.H{
+        "provider": "cf",
+        "status": jr.Status,
+        "ad": jr.AD,
+        "cd": jr.CD,
+        "question": q,
+        "answer": ans,
+        "authority": auth,
+        "additional": add,
+    }, nil
+}
+
 // DomainWhois performs WHOIS over port 43 with basic referral handling
 // GET /api/v1/tools/domain/whois?name=example.com
 func DomainWhois() gin.HandlerFunc {

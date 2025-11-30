@@ -4,10 +4,13 @@ import (
     "bufio"
     "context"
     "encoding/base64"
+    "encoding/json"
     "fmt"
     "github.com/gin-gonic/gin"
     "engtools/backend/internal/service"
+    "io"
     "net"
+    "net/http"
     "net/url"
     "regexp"
     "strings"
@@ -89,33 +92,94 @@ func DNSResolve() gin.HandlerFunc {
     return func(c *gin.Context) {
         name := sanitizeHost(c.Query("name"))
         typ := strings.ToUpper(strings.TrimSpace(c.Query("type")))
+        provider := strings.ToLower(strings.TrimSpace(c.Query("provider")))
+        if provider == "" { provider = "system" }
         if name == "" { c.JSON(400, gin.H{"error": "name required"}); return }
         if typ == "" { typ = "A" }
-        resolver := &net.Resolver{}
-        ctx, cancel := context.WithTimeout(c.Request.Context(), 3*time.Second)
+        ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
         defer cancel()
-        answers := make([]gin.H, 0)
-        switch typ {
-        case "A", "AAAA":
-            ips, err := resolver.LookupIP(ctx, typ, name)
-            if err != nil { c.JSON(200, gin.H{"answers": answers}); return }
-            for _, ip := range ips { answers = append(answers, gin.H{"name": name, "type": typ, "ttl": 0, "data": ip.String()}) }
-        case "CNAME":
-            cname, err := resolver.LookupCNAME(ctx, name)
-            if err == nil { answers = append(answers, gin.H{"name": name, "type": "CNAME", "ttl": 0, "data": cname}) }
-        case "MX":
-            mxs, err := resolver.LookupMX(ctx, name)
-            if err == nil { for _, mx := range mxs { answers = append(answers, gin.H{"name": name, "type": "MX", "ttl": 0, "data": fmt.Sprintf("%d %s", mx.Pref, mx.Host)}) } }
-        case "TXT":
-            txts, err := resolver.LookupTXT(ctx, name)
-            if err == nil { for _, t := range txts { answers = append(answers, gin.H{"name": name, "type": "TXT", "ttl": 0, "data": t}) } }
-        case "NS":
-            nss, err := resolver.LookupNS(ctx, name)
-            if err == nil { for _, ns := range nss { answers = append(answers, gin.H{"name": name, "type": "NS", "ttl": 0, "data": ns.Host}) } }
-        default:
-            c.JSON(400, gin.H{"error": "unsupported type"}); return
+        var answers []gin.H
+        if provider == "cf" || provider == "doh" {
+            a, err := dnsResolveDoH(ctx, name, typ)
+            if err != nil { c.JSON(502, gin.H{"error": err.Error()}); return }
+            answers = a
+        } else if provider == "ns" {
+            ns := c.Query("ns")
+            if ns == "" { c.JSON(400, gin.H{"error": "ns required for provider=ns"}); return }
+            resolver := &net.Resolver{ PreferGo: true, Dial: func(ctx context.Context, network, address string) (net.Conn, error) { d := &net.Dialer{Timeout: 3 * time.Second}; return d.DialContext(ctx, network, net.JoinHostPort(ns, "53")) } }
+            a := dnsResolveSystem(ctx, resolver, name, typ)
+            answers = a
+        } else {
+            resolver := &net.Resolver{}
+            a := dnsResolveSystem(ctx, resolver, name, typ)
+            answers = a
         }
-        c.JSON(200, gin.H{"answers": answers})
+        c.JSON(200, gin.H{"answers": answers, "provider": provider})
+    }
+}
+
+func dnsResolveSystem(ctx context.Context, resolver *net.Resolver, name, typ string) []gin.H {
+    answers := make([]gin.H, 0)
+    switch typ {
+    case "A", "AAAA":
+        ips, err := resolver.LookupIP(ctx, typ, name)
+        if err == nil {
+            for _, ip := range ips { answers = append(answers, gin.H{"name": name, "type": typ, "ttl": 0, "data": ip.String()}) }
+        }
+    case "CNAME":
+        cname, err := resolver.LookupCNAME(ctx, name)
+        if err == nil { answers = append(answers, gin.H{"name": name, "type": "CNAME", "ttl": 0, "data": cname}) }
+    case "MX":
+        mxs, err := resolver.LookupMX(ctx, name)
+        if err == nil { for _, mx := range mxs { answers = append(answers, gin.H{"name": name, "type": "MX", "ttl": 0, "data": fmt.Sprintf("%d %s", mx.Pref, mx.Host)}) } }
+    case "TXT":
+        txts, err := resolver.LookupTXT(ctx, name)
+        if err == nil { for _, t := range txts { answers = append(answers, gin.H{"name": name, "type": "TXT", "ttl": 0, "data": t}) } }
+    case "NS":
+        nss, err := resolver.LookupNS(ctx, name)
+        if err == nil { for _, ns := range nss { answers = append(answers, gin.H{"name": name, "type": "NS", "ttl": 0, "data": ns.Host}) } }
+    }
+    return answers
+}
+
+func dnsResolveDoH(ctx context.Context, name, typ string) ([]gin.H, error) {
+    u := fmt.Sprintf("https://cloudflare-dns.com/dns-query?name=%s&type=%s", url.QueryEscape(name), url.QueryEscape(typ))
+    req, _ := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+    req.Header.Set("Accept", "application/dns-json")
+    resp, err := http.DefaultClient.Do(req)
+    if err != nil { return nil, err }
+    defer resp.Body.Close()
+    b, _ := io.ReadAll(resp.Body)
+    var jr struct {
+        Answer []struct { Name string `json:"name"`; Type int `json:"type"`; TTL int `json:"TTL"`; Data string `json:"data"` } `json:"Answer"`
+    }
+    if err := json.Unmarshal(b, &jr); err != nil { return nil, err }
+    out := make([]gin.H, 0, len(jr.Answer))
+    for _, a := range jr.Answer {
+        t := rrTypeToName(a.Type)
+        // filter by requested type if needed
+        if typ != "" && t != strings.ToUpper(typ) { continue }
+        out = append(out, gin.H{"name": a.Name, "type": t, "ttl": a.TTL, "data": a.Data})
+    }
+    return out, nil
+}
+
+func rrTypeToName(code int) string {
+    switch code {
+    case 1:
+        return "A"
+    case 28:
+        return "AAAA"
+    case 5:
+        return "CNAME"
+    case 15:
+        return "MX"
+    case 16:
+        return "TXT"
+    case 2:
+        return "NS"
+    default:
+        return fmt.Sprintf("TYPE%d", code)
     }
 }
 

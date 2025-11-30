@@ -35,7 +35,7 @@ export default function IpDomain() {
     dispatch(setLoading(true))
     try {
       const clean = (s: string) => { let h = s.trim(); if (!h) return ''; if (h.startsWith('http://') || h.startsWith('https://')) h = h.replace(/^https?:\/\//, ''); h = h.split('/')[0]; return h }
-      const { data } = await api.get('/v1/tools/dns/resolve', { params: { name: clean(dnsName), type: dnsType } })
+      const { data } = await api.get('/v1/tools/dns/resolve', { params: { name: clean(dnsName), type: dnsType, provider: 'cf' } })
       setDnsRes(Array.isArray(data?.answers) ? data.answers : []);
       dispatch(setError(''))
       dispatch(openSnackbar({ message: 'DNS resolved', severity: 'success' }))

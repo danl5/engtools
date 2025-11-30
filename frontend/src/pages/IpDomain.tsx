@@ -45,7 +45,7 @@ export default function IpDomain() {
     dispatch(setLoading(true))
     try {
       const clean = (s: string) => { let h = s.trim(); if (!h) return ''; if (h.startsWith('http://') || h.startsWith('https://')) h = h.replace(/^https?:\/\//, ''); h = h.split('/')[0]; return h }
-      const { data } = await api.get('/v1/tools/dns/dig', { params: { name: clean(digName), type: digType, provider: 'cn' } })
+      const { data } = await api.get('/v1/tools/dns/resolve', { params: { name: clean(digName), type: digType, provider: 'cn' } })
       setDigRes(data)
       dispatch(setError(''))
       dispatch(openSnackbar({ message: 'Dig done', severity: 'success' }))

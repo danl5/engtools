@@ -12,10 +12,7 @@ export default function IpDomain() {
   const loading = useSelector((s: RootState) => s.ui.loading)
   const [ipInput, setIpInput] = useState('')
   const [ipRes, setIpRes] = useState<any>(null)
-  const [active, setActive] = useState<'ipgeo'|'dns'|'whois'|'dig'>('ipgeo')
-  const [dnsName, setDnsName] = useState('')
-  const [dnsType, setDnsType] = useState<'A'|'AAAA'|'CNAME'|'MX'|'TXT'|'NS'>('A')
-  const [dnsRes, setDnsRes] = useState<any[]>([])
+  const [active, setActive] = useState<'ipgeo'|'dns'|'whois'>('ipgeo')
   const [whoisName, setWhoisName] = useState('')
   const [whoisInfo, setWhoisInfo] = useState<any>(null)
   const [digName, setDigName] = useState('')
@@ -31,17 +28,6 @@ export default function IpDomain() {
       dispatch(setError(''))
       dispatch(openSnackbar({ message: 'IP info fetched', severity: 'success' }))
     } catch { dispatch(setError('IP lookup failed')) } finally { dispatch(setLoading(false)) }
-  }
-  const dnsLookup = async () => {
-    if (!dnsName) { dispatch(setError('Please enter domain/host')); return }
-    dispatch(setLoading(true))
-    try {
-      const clean = (s: string) => { let h = s.trim(); if (!h) return ''; if (h.startsWith('http://') || h.startsWith('https://')) h = h.replace(/^https?:\/\//, ''); h = h.split('/')[0]; return h }
-      const { data } = await api.get('/v1/tools/dns/resolve', { params: { name: clean(dnsName), type: dnsType, provider: 'cn' } })
-      setDnsRes(Array.isArray(data?.answers) ? data.answers : []);
-      dispatch(setError(''))
-      dispatch(openSnackbar({ message: 'DNS resolved', severity: 'success' }))
-    } catch { dispatch(setError('DNS lookup failed')) } finally { dispatch(setLoading(false)) }
   }
   const whoisLookup = async () => {
     if (!whoisName) { dispatch(setError('Please enter domain')); return }
@@ -75,7 +61,6 @@ export default function IpDomain() {
           <MenuItem value="ipgeo">IP Geolocation</MenuItem>
           <MenuItem value="dns">DNS Resolve</MenuItem>
           <MenuItem value="whois">WHOIS</MenuItem>
-          <MenuItem value="dig">Dig (authority)</MenuItem>
         </Select>
       </FormControl>
       <Grid container spacing={4}>
@@ -115,56 +100,7 @@ export default function IpDomain() {
           </Card>
         </Grid>
         )}
-        {active==='dns' && (
-        <Grid item xs={12} md={8}>
-          <Card sx={{ bgcolor: 'rgba(255,255,255,0.06)', transition: 'transform .2s', '&:hover': { transform: 'translateY(-4px)' } }}>
-            <CardContent>
-              <Typography variant="h6">DNS Resolve</Typography>
-              <Grid container spacing={2} sx={{ mt:1 }}>
-                <Grid item xs={12} md={8}><TextField label="Domain/Host" value={dnsName} onChange={e=>setDnsName(e.target.value)} fullWidth /></Grid>
-                <Grid item xs={12} md={4}>
-                  <FormControl fullWidth>
-                    <InputLabel id="dns-type">Type</InputLabel>
-                    <Select labelId="dns-type" label="Type" value={dnsType} onChange={e=>setDnsType(e.target.value as any)}>
-                      <MenuItem value="A">A</MenuItem>
-                      <MenuItem value="AAAA">AAAA</MenuItem>
-                      <MenuItem value="CNAME">CNAME</MenuItem>
-                      <MenuItem value="MX">MX</MenuItem>
-                      <MenuItem value="TXT">TXT</MenuItem>
-                      <MenuItem value="NS">NS</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Grid>
-              </Grid>
-              <Button sx={{ mt:1 }} variant="contained" disabled={loading} onClick={dnsLookup}>Resolve</Button>
-              {dnsRes && dnsRes.length>0 && (
-                <TableContainer component={Paper} sx={{ mt:2, background:'rgba(255,255,255,0.06)' }}>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Name</TableCell>
-                        <TableCell>Type</TableCell>
-                        <TableCell>TTL</TableCell>
-                        <TableCell>Data</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {dnsRes.map((r:any, idx:number)=> (
-                        <TableRow key={idx}>
-                          <TableCell>{r.name || dnsName}</TableCell>
-                          <TableCell>{r.type || dnsType}</TableCell>
-                          <TableCell>{r.ttl ?? '-'}</TableCell>
-                          <TableCell>{r.data || r.value || '-'}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              )}
-            </CardContent>
-          </Card>
-        </Grid>
-        )}
+        
         {active==='whois' && (
         <Grid item xs={12} md={8}>
           <Card sx={{ bgcolor: 'rgba(255,255,255,0.06)', transition: 'transform .2s', '&:hover': { transform: 'translateY(-4px)' } }}>
@@ -193,17 +129,17 @@ export default function IpDomain() {
           </Card>
         </Grid>
         )}
-        {active==='dig' && (
+        {active==='dns' && (
         <Grid item xs={12} md={10}>
           <Card sx={{ bgcolor: 'rgba(255,255,255,0.06)', transition: 'transform .2s', '&:hover': { transform: 'translateY(-4px)' } }}>
             <CardContent>
-              <Typography variant="h6">Dig (Authority/Additional)</Typography>
+              <Typography variant="h6">DNS Resolve (Authority/Additional)</Typography>
               <Grid container spacing={2} sx={{ mt:1 }}>
                 <Grid item xs={12} md={5}><TextField label="Domain/Host" value={digName} onChange={e=>setDigName(e.target.value)} fullWidth /></Grid>
                 <Grid item xs={12} md={3}>
                   <FormControl fullWidth>
-                    <InputLabel id="dig-type">Type</InputLabel>
-                    <Select labelId="dig-type" label="Type" value={digType} onChange={e=>setDigType(e.target.value as any)}>
+                    <InputLabel id="dns-type">Type</InputLabel>
+                    <Select labelId="dns-type" label="Type" value={digType} onChange={e=>setDigType(e.target.value as any)}>
                       <MenuItem value="A">A</MenuItem>
                       <MenuItem value="AAAA">AAAA</MenuItem>
                       <MenuItem value="CNAME">CNAME</MenuItem>
@@ -213,7 +149,6 @@ export default function IpDomain() {
                     </Select>
                   </FormControl>
                 </Grid>
-                
               </Grid>
               <Button sx={{ mt:1 }} variant="contained" disabled={loading} onClick={digLookup}>Query</Button>
               {digRes && (

@@ -13,6 +13,7 @@ import (
     "net"
     "net/http"
     "net/url"
+    "github.com/miekg/dns"
     "regexp"
     "strings"
     "time"
@@ -246,27 +247,24 @@ func DNSDig() gin.HandlerFunc {
         if name == "" { c.JSON(400, gin.H{"error": "name required"}); return }
         if typ == "" { typ = "A" }
         provider := strings.ToLower(strings.TrimSpace(c.Query("provider")))
-        if provider == "" { provider = "cf" }
+        if provider == "" { provider = "cn" }
         ctx, cancel := context.WithTimeout(c.Request.Context(), 6*time.Second)
         defer cancel()
-        if provider == "cf" {
-            res, err := dnsDigDoHCF(ctx, name, typ)
-            if err != nil { log.Printf("dns dig doh cf error: %v", err); c.JSON(502, gin.H{"error": err.Error()}); return }
+        if provider == "cn" {
+            res, err := dnsDigCN(ctx, name, typ)
+            if err != nil { log.Printf("dns dig cn error: %v", err); c.JSON(502, gin.H{"error": err.Error()}); return }
             c.JSON(200, res)
             return
         }
-        // fallback basic dig using CN resolvers (answers only)
-        answers := dnsResolveCN(ctx, name, typ)
-        c.JSON(200, gin.H{
-            "provider": "cn",
-            "question": gin.H{"name": name, "type": typ},
-            "status": 0,
-            "ad": false,
-            "cd": false,
-            "answer": answers,
-            "authority": []gin.H{},
-            "additional": []gin.H{},
-        })
+        if provider == "ns" {
+            ns := c.Query("ns")
+            if ns == "" { c.JSON(400, gin.H{"error": "ns required for provider=ns"}); return }
+            res, err := dnsDigWithServer(ctx, name, typ, ns+":53")
+            if err != nil { log.Printf("dns dig ns error: %v", err); c.JSON(502, gin.H{"error": err.Error()}); return }
+            c.JSON(200, res)
+            return
+        }
+        c.JSON(400, gin.H{"error": "unsupported provider"})
     }
 }
 
@@ -309,6 +307,68 @@ func dnsDigDoHCF(ctx context.Context, name, typ string) (gin.H, error) {
         "authority": auth,
         "additional": add,
     }, nil
+}
+
+func dnsDigCN(ctx context.Context, name, typ string) (gin.H, error) {
+    servers := []string{"223.5.5.5:53", "223.6.6.6:53", "119.29.29.29:53"}
+    for _, s := range servers {
+        res, err := dnsDigWithServer(ctx, name, typ, s)
+        if err == nil { return res, nil }
+        log.Printf("dns dig cn server %s error: %v", s, err)
+    }
+    return nil, fmt.Errorf("all CN resolvers failed")
+}
+
+func dnsDigWithServer(ctx context.Context, name, typ, server string) (gin.H, error) {
+    c := &dns.Client{Timeout: 5 * time.Second}
+    m := new(dns.Msg)
+    code := typeCode(typ)
+    m.SetQuestion(dns.Fqdn(name), code)
+    m.RecursionDesired = true
+    r, _, err := c.ExchangeContext(ctx, m, server)
+    if err != nil { return nil, err }
+    to := func(rrs []dns.RR) []gin.H {
+        out := make([]gin.H, 0, len(rrs))
+        for _, rr := range rrs {
+            h := rr.Header()
+            out = append(out, gin.H{
+                "name": h.Name,
+                "type": dns.TypeToString[h.Rrtype],
+                "ttl": int(h.Ttl),
+                "data": rr.String(),
+            })
+        }
+        return out
+    }
+    return gin.H{
+        "provider": "cn",
+        "status": r.Rcode,
+        "ad": r.AuthenticatedData,
+        "cd": r.CheckingDisabled,
+        "question": gin.H{"name": name, "type": typ},
+        "answer": to(r.Answer),
+        "authority": to(r.Ns),
+        "additional": to(r.Extra),
+    }, nil
+}
+
+func typeCode(typ string) uint16 {
+    switch strings.ToUpper(typ) {
+    case "A":
+        return dns.TypeA
+    case "AAAA":
+        return dns.TypeAAAA
+    case "CNAME":
+        return dns.TypeCNAME
+    case "MX":
+        return dns.TypeMX
+    case "TXT":
+        return dns.TypeTXT
+    case "NS":
+        return dns.TypeNS
+    default:
+        return dns.TypeA
+    }
 }
 
 // DomainWhois performs WHOIS over port 43 with basic referral handling

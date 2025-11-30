@@ -9,6 +9,7 @@ import (
     "github.com/gin-gonic/gin"
     "engtools/backend/internal/service"
     "io"
+    "log"
     "net"
     "net/http"
     "net/url"
@@ -99,9 +100,18 @@ func DNSResolve() gin.HandlerFunc {
         ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
         defer cancel()
         var answers []gin.H
-        if provider == "cf" || provider == "doh" {
-            a, err := dnsResolveDoH(ctx, name, typ)
-            if err != nil { c.JSON(502, gin.H{"error": err.Error()}); return }
+        if provider == "cf" {
+            a, err := dnsResolveDoHCF(ctx, name, typ)
+            if err != nil { log.Printf("dns doh cf error: %v", err); c.JSON(502, gin.H{"error": err.Error()}); return }
+            answers = a
+        } else if provider == "doh" {
+            a, err := dnsResolveDoHCF(ctx, name, typ)
+            if err != nil {
+                log.Printf("dns doh cf error: %v", err)
+                // fallback to domestic recursive resolvers over UDP/TCP
+                a = dnsResolveCN(ctx, name, typ)
+                if len(a) == 0 { c.JSON(502, gin.H{"error": err.Error()}); return }
+            }
             answers = a
         } else if provider == "ns" {
             ns := c.Query("ns")
@@ -109,6 +119,8 @@ func DNSResolve() gin.HandlerFunc {
             resolver := &net.Resolver{ PreferGo: true, Dial: func(ctx context.Context, network, address string) (net.Conn, error) { d := &net.Dialer{Timeout: 3 * time.Second}; return d.DialContext(ctx, network, net.JoinHostPort(ns, "53")) } }
             a := dnsResolveSystem(ctx, resolver, name, typ)
             answers = a
+        } else if provider == "cn" {
+            answers = dnsResolveCN(ctx, name, typ)
         } else {
             resolver := &net.Resolver{}
             a := dnsResolveSystem(ctx, resolver, name, typ)
@@ -142,14 +154,16 @@ func dnsResolveSystem(ctx context.Context, resolver *net.Resolver, name, typ str
     return answers
 }
 
-func dnsResolveDoH(ctx context.Context, name, typ string) ([]gin.H, error) {
+func dnsResolveDoHCF(ctx context.Context, name, typ string) ([]gin.H, error) {
     u := fmt.Sprintf("https://cloudflare-dns.com/dns-query?name=%s&type=%s", url.QueryEscape(name), url.QueryEscape(typ))
     req, _ := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
     req.Header.Set("Accept", "application/dns-json")
-    resp, err := http.DefaultClient.Do(req)
+    client := &http.Client{ Timeout: 4 * time.Second }
+    resp, err := client.Do(req)
     if err != nil { return nil, err }
     defer resp.Body.Close()
     b, _ := io.ReadAll(resp.Body)
+    if resp.StatusCode != 200 { return nil, fmt.Errorf("doh cf status %d: %s", resp.StatusCode, string(b)) }
     var jr struct {
         Answer []struct { Name string `json:"name"`; Type int `json:"type"`; TTL int `json:"TTL"`; Data string `json:"data"` } `json:"Answer"`
     }
@@ -158,6 +172,27 @@ func dnsResolveDoH(ctx context.Context, name, typ string) ([]gin.H, error) {
     for _, a := range jr.Answer {
         t := rrTypeToName(a.Type)
         // filter by requested type if needed
+        if typ != "" && t != strings.ToUpper(typ) { continue }
+        out = append(out, gin.H{"name": a.Name, "type": t, "ttl": a.TTL, "data": a.Data})
+    }
+    return out, nil
+}
+
+func dnsResolveDoHGoogle(ctx context.Context, name, typ string) ([]gin.H, error) {
+    u := fmt.Sprintf("https://dns.google/resolve?name=%s&type=%s", url.QueryEscape(name), url.QueryEscape(typ))
+    req, _ := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+    resp, err := (&http.Client{ Timeout: 4 * time.Second }).Do(req)
+    if err != nil { return nil, err }
+    defer resp.Body.Close()
+    b, _ := io.ReadAll(resp.Body)
+    if resp.StatusCode != 200 { return nil, fmt.Errorf("doh google status %d: %s", resp.StatusCode, string(b)) }
+    var jr struct {
+        Answer []struct { Name string `json:"name"`; Type int `json:"type"`; TTL int `json:"TTL"`; Data string `json:"data"` } `json:"Answer"`
+    }
+    if err := json.Unmarshal(b, &jr); err != nil { return nil, err }
+    out := make([]gin.H, 0, len(jr.Answer))
+    for _, a := range jr.Answer {
+        t := rrTypeToName(a.Type)
         if typ != "" && t != strings.ToUpper(typ) { continue }
         out = append(out, gin.H{"name": a.Name, "type": t, "ttl": a.TTL, "data": a.Data})
     }
@@ -181,6 +216,25 @@ func rrTypeToName(code int) string {
     default:
         return fmt.Sprintf("TYPE%d", code)
     }
+}
+
+func dnsResolveCN(ctx context.Context, name, typ string) []gin.H {
+    // Domestic public resolvers: AliDNS, DNSPod
+    servers := []string{"223.5.5.5", "223.6.6.6", "119.29.29.29"}
+    seen := map[string]struct{}{}
+    out := make([]gin.H, 0)
+    for _, ns := range servers {
+        resolver := &net.Resolver{ PreferGo: true, Dial: func(ctx context.Context, network, address string) (net.Conn, error) { d := &net.Dialer{Timeout: 3 * time.Second}; return d.DialContext(ctx, network, net.JoinHostPort(ns, "53")) } }
+        a := dnsResolveSystem(ctx, resolver, name, typ)
+        for _, ans := range a {
+            key := fmt.Sprintf("%s|%s|%v", ans["name"], ans["type"], ans["data"]) 
+            if _, ok := seen[key]; !ok {
+                seen[key] = struct{}{}
+                out = append(out, ans)
+            }
+        }
+    }
+    return out
 }
 
 // DomainWhois performs WHOIS over port 43 with basic referral handling

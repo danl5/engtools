@@ -20,7 +20,6 @@ export default function IpDomain() {
   const [whoisInfo, setWhoisInfo] = useState<any>(null)
   const [digName, setDigName] = useState('')
   const [digType, setDigType] = useState<'A'|'AAAA'|'CNAME'|'MX'|'TXT'|'NS'>('A')
-  const [digProvider, setDigProvider] = useState<'cf'|'cn'>('cf')
   const [digRes, setDigRes] = useState<any>(null)
   const ipLookup = async () => {
     dispatch(setLoading(true))
@@ -60,7 +59,7 @@ export default function IpDomain() {
     dispatch(setLoading(true))
     try {
       const clean = (s: string) => { let h = s.trim(); if (!h) return ''; if (h.startsWith('http://') || h.startsWith('https://')) h = h.replace(/^https?:\/\//, ''); h = h.split('/')[0]; return h }
-      const { data } = await api.get('/v1/tools/dns/dig', { params: { name: clean(digName), type: digType, provider: digProvider } })
+      const { data } = await api.get('/v1/tools/dns/dig', { params: { name: clean(digName), type: digType, provider: 'cn' } })
       setDigRes(data)
       dispatch(setError(''))
       dispatch(openSnackbar({ message: 'Dig done', severity: 'success' }))
@@ -214,15 +213,7 @@ export default function IpDomain() {
                     </Select>
                   </FormControl>
                 </Grid>
-                <Grid item xs={12} md={4}>
-                  <FormControl fullWidth>
-                    <InputLabel id="dig-provider">Provider</InputLabel>
-                    <Select labelId="dig-provider" label="Provider" value={digProvider} onChange={e=>setDigProvider(e.target.value as any)}>
-                      <MenuItem value="cf">Cloudflare DoH</MenuItem>
-                      <MenuItem value="cn">CN recursive</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Grid>
+                
               </Grid>
               <Button sx={{ mt:1 }} variant="contained" disabled={loading} onClick={digLookup}>Query</Button>
               {digRes && (

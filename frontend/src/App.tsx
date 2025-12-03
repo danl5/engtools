@@ -1,4 +1,4 @@
-import { AppBar, Toolbar, Typography, Container, Button, Box, Tabs, Tab, Snackbar, Alert, CssBaseline } from '@mui/material'
+import { AppBar, Toolbar, Typography, Container, Button, Box, Tabs, Tab, Snackbar, Alert, CssBaseline, Link } from '@mui/material'
 import { useState } from 'react'
 import { ThemeProvider, createTheme } from '@mui/material/styles'
 import Loader from './components/Loader'
@@ -91,7 +91,7 @@ export default function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <Box sx={{ position: 'relative', minHeight: '100vh', background: 'linear-gradient(135deg, #1e1b4b 0%, #0f172a 40%, #7c3aed 100%)' }}>
+      <Box sx={{ position: 'relative', minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'linear-gradient(135deg, #1e1b4b 0%, #0f172a 40%, #7c3aed 100%)' }}>
         <AppBar position="static" sx={{ background: 'linear-gradient(90deg, #7c3aed 0%, #06b6d4 100%)' }}>
           <Toolbar>
             <img src="/favicon.svg" alt="EngTools" width="24" height="24" style={{ marginRight: 8 }} />
@@ -103,7 +103,7 @@ export default function App() {
           <Box sx={{ position: 'absolute', bottom: 40, right: 80, width: 180, height: 180, borderRadius: '50%', background: 'radial-gradient(circle, rgba(167,139,250,.6), transparent 60%)', animation: 'float 7s ease-in-out infinite' }} />
         </Box>
         <Loader />
-        <Container maxWidth="xl" sx={{ mt: 4, pb: 6 }}>
+        <Container maxWidth="xl" sx={{ mt: 4, pb: 6, flexGrow: 1 }}>
           <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2 }} variant="scrollable" scrollButtons="auto" allowScrollButtonsMobile>
             <Tab label="Tools" value="tools" />
             <Tab label="JSON" value="json" />
@@ -114,6 +114,14 @@ export default function App() {
           </Tabs>
           {tab==='tools'? <Tools/> : tab==='json' ? <Json/> : tab==='text' ? <TextTools/> : tab==='ipdom' ? <IpDomain/> : tab==='crypto' ? <Crypto/> : <Cert/>}
         </Container>
+        <Box sx={{ mt: 'auto', py: 2, textAlign: 'center' }}>
+          <Typography variant="body2" sx={{ opacity: 0.85 }}>
+            © {new Date().getFullYear()} Dan ·{' '}
+            <Link href="https://beian.miit.gov.cn/" target="_blank" rel="noopener" underline="hover" color="inherit">
+              粤ICP备2025502409号-1
+            </Link>
+          </Typography>
+        </Box>
         <Snackbar open={snackbar.open} autoHideDuration={3000}>
           <Alert severity={snackbar.severity} sx={{ width: '100%' }}>{snackbar.message}</Alert>
         </Snackbar>

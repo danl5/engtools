@@ -1,8 +1,9 @@
-import { Container, Typography, Grid, Card, CardContent, Alert, TextField, Button, Switch, FormControlLabel, Box } from '@mui/material'
+import { Container, Typography, Grid, Card, CardContent, Alert, TextField, Button, Switch, FormControlLabel, Box, Table, TableBody, TableCell, TableHead, TableRow, TableContainer, Paper, FormControl, InputLabel, Select, MenuItem } from '@mui/material'
 import { useDispatch, useSelector } from 'react-redux'
 import { RootState } from '../store'
 import { setError, openSnackbar } from '../store'
 import BigText from '../components/BigText'
+import CMerge from '../components/CMerge'
 import { useState } from 'react'
 
 export default function TextTools() {
@@ -24,6 +25,68 @@ export default function TextTools() {
     if (crlf || loneLf || loneCr) return 'Mixed'
     return 'None'
   })()
+  const [active, setActive] = useState<'replace'|'diff'>('replace')
+  const [diffA, setDiffA] = useState('')
+  const [diffB, setDiffB] = useState('')
+  const [diffMode, setDiffMode] = useState<'line'|'word'>('line')
+  const [diffIgnoreSpace, setDiffIgnoreSpace] = useState(true)
+  const [diffIgnoreCase, setDiffIgnoreCase] = useState(false)
+  const [diffRows, setDiffRows] = useState<any[]>([])
+  const [unified, setUnified] = useState('')
+  const [collapse, setCollapse] = useState(false)
+  const lcs = (a: string[], b: string[]) => {
+    const n = a.length, m = b.length
+    const dp: number[][] = Array.from({length: n+1}, ()=>Array(m+1).fill(0))
+    for (let i = n-1; i>=0; i--) {
+      for (let j = m-1; j>=0; j--) {
+        dp[i][j] = a[i] === b[j] ? dp[i+1][j+1] + 1 : Math.max(dp[i+1][j], dp[i][j+1])
+      }
+    }
+    const ops: Array<{type:'eq'|'del'|'ins', val:string}> = []
+    let i=0,j=0
+    while (i<n && j<m) {
+      if (a[i] === b[j]) { ops.push({type:'eq', val:a[i]}); i++; j++; }
+      else if (dp[i+1][j] >= dp[i][j+1]) { ops.push({type:'del', val:a[i]}); i++ }
+      else { ops.push({type:'ins', val:b[j]}); j++ }
+    }
+    while (i<n) { ops.push({type:'del', val:a[i++]}) }
+    while (j<m) { ops.push({type:'ins', val:b[j++]}) }
+    return ops
+  }
+  const normalizeSeq = (s: string) => {
+    let t = s
+    if (diffIgnoreCase) t = t.toLowerCase()
+    if (diffMode==='line') {
+      let lines = t.split('\n')
+      if (diffIgnoreSpace) lines = lines.map(x=>x.replace(/\s+/g,' '))
+      return {seq: lines, raw: s.split('\n')}
+    } else {
+      let words = t.split(/(\s+)/)
+      if (diffIgnoreSpace) words = words.filter(w=>!/^\s+$/.test(w))
+      return {seq: words, raw: diffIgnoreSpace ? s.split(/\s+/) : s.split(/(\s+)/)}
+    }
+  }
+  const compareDiff = () => {
+    const A = normalizeSeq(diffA), B = normalizeSeq(diffB)
+    const ops = lcs(A.seq, B.seq)
+    const rows: any[] = []
+    let u: string[] = ['@@']
+    for (const op of ops) {
+      if (op.type==='eq') rows.push({type:'eq', left: A.raw.shift(), right: B.raw.shift()})
+      else if (op.type==='del') { rows.push({type:'del', left: A.raw.shift(), right: ''}); u.push('-'+op.val) }
+      else if (op.type==='ins') { rows.push({type:'ins', left: '', right: B.raw.shift()}); u.push('+'+op.val) }
+    }
+    const merged: any[] = []
+    for (let i=0;i<rows.length;i++){
+      const r = rows[i]
+      if (r.type==='del' && i+1<rows.length && rows[i+1].type==='ins'){
+        merged.push({type:'rep', left:r.left, right:rows[i+1].right}); i++
+      } else merged.push(r)
+    }
+    setDiffRows(merged)
+    setUnified(u.join('\n'))
+    dispatch(openSnackbar({ message: 'Diff computed', severity: 'success' }))
+  }
   const apply = () => {
     try {
       let s = input
@@ -70,7 +133,15 @@ export default function TextTools() {
     <Container sx={{ mt: 4 }}>
       <Typography variant="h5" gutterBottom>Text Tools</Typography>
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      <FormControl fullWidth sx={{ mb: 2 }}>
+        <InputLabel id="text-tool">Select Tool</InputLabel>
+        <Select labelId="text-tool" label="Select Tool" value={active} onChange={e=>setActive(e.target.value as any)}>
+          <MenuItem value="replace">Replace</MenuItem>
+          <MenuItem value="diff">Diff</MenuItem>
+        </Select>
+      </FormControl>
       <Grid container spacing={4}>
+        {active==='replace' && (
         <Grid item xs={12} md={10}>
           <Card sx={{ bgcolor: 'rgba(255,255,255,0.06)' }}><CardContent sx={{ p:3 }}>
             <Typography variant="h6">Replace Text</Typography>
@@ -111,6 +182,50 @@ export default function TextTools() {
             <BigText label="Output" value={output} readOnly downloadName={'output.txt'} />
           </CardContent></Card>
         </Grid>
+        )}
+        {active==='diff' && (
+        <Grid item xs={12} md={12}>
+          <Card sx={{ bgcolor: 'rgba(255,255,255,0.06)' }}><CardContent sx={{ p:3 }}>
+            <Typography variant="h6">Diff Text</Typography>
+            <Grid container spacing={2} sx={{ mt:1 }}>
+              <Grid item xs={12} md={6}><BigText label="Text A" value={diffA} onChange={setDiffA} /></Grid>
+              <Grid item xs={12} md={6}><BigText label="Text B" value={diffB} onChange={setDiffB} /></Grid>
+            </Grid>
+            <Box sx={{ mt:1, display:'flex', gap:2 }}>
+              <Box sx={{ display:'flex', alignItems:'center', gap:1 }}>
+                <Box sx={{ width:16, height:16, bgcolor:'rgba(34,197,94,0.7)', borderRadius: '3px' }} />
+                <Typography variant="body2">Added</Typography>
+              </Box>
+              <Box sx={{ display:'flex', alignItems:'center', gap:1 }}>
+                <Box sx={{ width:16, height:16, bgcolor:'rgba(239,68,68,0.7)', borderRadius: '3px' }} />
+                <Typography variant="body2">Removed</Typography>
+              </Box>
+              <Box sx={{ display:'flex', alignItems:'center', gap:1 }}>
+                <Box sx={{ width:16, height:16, bgcolor:'rgba(250,204,21,0.7)', borderRadius: '3px' }} />
+                <Typography variant="body2">Changed</Typography>
+              </Box>
+            </Box>
+            <Grid container spacing={2} sx={{ mt:1 }}>
+              <Grid item xs={12} md={3}>
+                <FormControl fullWidth>
+                  <InputLabel id="diff-mode">Mode</InputLabel>
+                  <Select labelId="diff-mode" label="Mode" value={diffMode} onChange={e=>setDiffMode(e.target.value as any)}>
+                    <MenuItem value="line">Line</MenuItem>
+                    <MenuItem value="word">Word</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} md={3}><FormControlLabel control={<Switch checked={diffIgnoreSpace} onChange={e=>setDiffIgnoreSpace(e.target.checked)} />} label="Ignore whitespace" /></Grid>
+              <Grid item xs={12} md={3}><FormControlLabel control={<Switch checked={diffIgnoreCase} onChange={e=>setDiffIgnoreCase(e.target.checked)} />} label="Ignore case" /></Grid>
+              <Grid item xs={12} md={3}><FormControlLabel control={<Switch checked={collapse} onChange={e=>setCollapse(e.target.checked)} />} label="only show diff" /></Grid>
+              <Grid item xs={12} md={3}><Button variant="contained" onClick={compareDiff}>Compare</Button></Grid>
+            </Grid>
+            <Box sx={{ mt:2 }}>
+              <CMerge left={diffA} right={diffB} collapse={collapse} />
+            </Box>
+          </CardContent></Card>
+        </Grid>
+        )}
       </Grid>
     </Container>
   )

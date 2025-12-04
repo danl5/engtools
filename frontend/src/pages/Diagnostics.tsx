@@ -1,0 +1,510 @@
+import { Container, Typography, Grid, Card, CardContent, FormControl, InputLabel, Select, MenuItem, TextField, Button, Table, TableBody, TableCell, TableHead, TableRow, TableContainer, Paper, Box, Alert } from '@mui/material'
+import { useDispatch, useSelector } from 'react-redux'
+import { useState } from 'react'
+import { RootState, setError, openSnackbar } from '../store'
+import BigText from '../components/BigText'
+
+export default function Diagnostics() {
+  const dispatch = useDispatch()
+  const error = useSelector((s: RootState) => s.ui.error)
+  const [category, setCategory] = useState<'network'|'storage'|'compute'|'container'|'k8s'|'lb'|'security'>('network')
+  const [scenario, setScenario] = useState<'dns_resolve_issue'|'site_slow'|'tls_error'|'http3_unreachable'|'proxy_issue'|'mtu_blackhole'|'disk_io_issue'|'fs_errors'|'raid_lvm'|'remote_storage'|'mount_capacity'|'cpu_load'|'memory_oom'|'syscall_latency'|'irq_softirq'|'scheduler_time'|'runtime_issue'|'image_pull_slow'|'cgroups_namespace'|'cni_network_issue'|'node_notready'|'pod_crashloop'|'service_dns_issue'|'kubeproxy_mode'|'cert_expiry'|'nginx_gateway'|'envoy_gateway'|'haproxy_gateway'|'selinux_apparmor'|'firewall_rules'|'traffic_control'>('dns_resolve_issue')
+  const [os, setOs] = useState<'macos'|'linux'>('macos')
+  const [host, setHost] = useState('')
+  const [resolver, setResolver] = useState('')
+  const [port, setPort] = useState('443')
+  const [path, setPath] = useState('/')
+  const [originIp, setOriginIp] = useState('')
+  const [samples, setSamples] = useState(10)
+  const [timeout, setTimeoutVal] = useState(10)
+  const [cmds, setCmds] = useState<Array<{cmd:string, desc:string}>>([])
+  const [dfPing, setDfPing] = useState(false)
+  const [svcRows, setSvcRows] = useState<Array<{name:string, clusterIP:string, port:string, nodePort?:string, chain:string, endpoints:string[]}>>([])
+  const [epRows, setEpRows] = useState<Array<{svcChain:string, sepChain:string, to:string}>>([])
+  const [device, setDevice] = useState('/dev/sda')
+  const [pid, setPid] = useState('')
+  const [iface, setIface] = useState('')
+  const [image, setImage] = useState('')
+  const [parserType, setParserType] = useState<'curl'|'mtr'|'openssl'|'iostat'|'iptables'>('curl')
+  const [parserInput, setParserInput] = useState('')
+  const [parsedHeaders, setParsedHeaders] = useState<string[]>([])
+  const [parsedRows, setParsedRows] = useState<any[]>([])
+  
+  const scenarioOptions: Record<string, Array<{value:string,label:string}>> = {
+    network: [
+      { value: 'dns_resolve_issue', label: 'DNS resolve issue' },
+      { value: 'site_slow', label: 'Site slow/timeout' },
+      { value: 'tls_error', label: 'TLS handshake/cert error' },
+      { value: 'http3_unreachable', label: 'HTTP/3 unreachable' },
+      { value: 'proxy_issue', label: 'Proxy impact' },
+      { value: 'mtu_blackhole', label: 'MTU/DF blackhole' }
+    ],
+    storage: [
+      { value: 'disk_io_issue', label: 'Disk IO issue' },
+      { value: 'fs_errors', label: 'Filesystem errors' },
+      { value: 'raid_lvm', label: 'RAID/LVM/ZFS' },
+      { value: 'remote_storage', label: 'NFS/iSCSI' },
+      { value: 'mount_capacity', label: 'Mount/Capacity anomaly' }
+    ],
+    compute: [
+      { value: 'cpu_load', label: 'CPU high load' },
+      { value: 'memory_oom', label: 'Memory/OOM' },
+      { value: 'syscall_latency', label: 'Syscall latency' },
+      { value: 'irq_softirq', label: 'IRQ/softirq/network queues' },
+      { value: 'scheduler_time', label: 'Scheduler/time drift' }
+    ],
+    container: [
+      { value: 'runtime_issue', label: 'Docker/containerd runtime issue' },
+      { value: 'image_pull_slow', label: 'Image pull slow' },
+      { value: 'cgroups_namespace', label: 'Cgroups/Namespace isolation' },
+      { value: 'cni_network_issue', label: 'CNI network issue' }
+    ],
+    k8s: [
+      { value: 'node_notready', label: 'Node NotReady' },
+      { value: 'pod_crashloop', label: 'Pod CrashLoopBackOff' },
+      { value: 'service_dns_issue', label: 'Service/DNS issue' },
+      { value: 'kubeproxy_mode', label: 'kube-proxy mode/iptables' },
+      { value: 'cert_expiry', label: 'Certificates expiry' }
+    ],
+    lb: [
+      { value: 'nginx_gateway', label: 'Nginx gateway' },
+      { value: 'envoy_gateway', label: 'Envoy gateway' },
+      { value: 'haproxy_gateway', label: 'HAProxy gateway' }
+    ],
+    security: [
+      { value: 'selinux_apparmor', label: 'SELinux/AppArmor' },
+      { value: 'firewall_rules', label: 'Firewall rules' },
+      { value: 'traffic_control', label: 'Traffic control (tc)' }
+    ]
+  }
+  const gen = () => {
+    const rows: Array<{cmd:string, desc:string}> = []
+    const add = (cmd:string, desc:string) => rows.push({ cmd, desc })
+    const h = host
+    const r = resolver || '223.5.5.5'
+    const p = port || '443'
+    const pa = path || '/'
+    const ip = originIp
+    const c = samples
+    const t = timeout
+    if (category==='network') {
+      if (!h) { dispatch(setError('Please enter host/domain')); return }
+      if (scenario==='dns_resolve_issue') {
+        add(`dig ${h} A +trace`, 'Authority chain trace')
+        if (r) add(`dig ${h} A @${r} +nocache`, 'Query recursive resolver (no cache)')
+        if (os==='macos') add(`scutil --dns`, 'Show system DNS config'); else add(`resolvectl status`, 'Show system DNS config')
+        add(`dig ${h} A +dnssec`, 'DNSSEC validation check')
+      } else if (scenario==='site_slow') {
+        add(`mtr -T -c ${c} ${h}`, 'TCP MTR sampling')
+        add(`curl -I -m ${t} https://${h}${pa} -w '%{time_total}\n' -v`, 'HTTP headers and total time')
+      } else if (scenario==='tls_error') {
+        add(`openssl s_client -connect ${h}:${p} -servername ${h} -showcerts`, 'TLS handshake and cert chain')
+        if (ip) add(`curl --resolve '${h}:${p}:${ip}' https://${h}${pa} -v`, 'Force SNI+IP for origin check')
+      } else if (scenario==='http3_unreachable') {
+        add(`curl -I --http3 -m ${t} https://${h}${pa} -v`, 'Attempt HTTP/3')
+        add(`mtr -U -c ${c} ${h}`, 'UDP MTR sampling')
+      } else if (scenario==='proxy_issue') {
+        add(`env | grep -E '(http|https)_proxy'`, 'Inspect env proxy settings')
+        add(`curl --noproxy '*' https://${h}${pa} -v`, 'Bypass proxy')
+      } else if (scenario==='mtu_blackhole') {
+        add(`ping ${h} -D -s 1400`, 'DF ping test for MTU blackhole')
+        add(`ping ${h} -D -s 1472`, 'DF ping test near Ethernet MTU')
+      }
+      if (dfPing && h) add(`ping ${h} -D -s 1400`, 'DF ping test for MTU')
+    } else if (category==='storage') {
+      if (scenario==='disk_io_issue') {
+        add(`smartctl -a ${device}`, 'Disk SMART health')
+        add(`iostat -x 1 5`, 'Extended IO stats')
+        add(`sar -d 1 5`, 'Disk stats over time')
+      } else if (scenario==='fs_errors') {
+        add(`dmesg -T | grep -i -E 'EXT4|XFS'`, 'Filesystem error logs')
+        add(`findmnt -A`, 'Mount points')
+        add(`df -h`, 'Capacity overview')
+      } else if (scenario==='raid_lvm') {
+        add(`mdadm --detail /dev/md0`, 'RAID status')
+        add(`pvdisplay && vgdisplay && lvdisplay`, 'LVM overview')
+        add(`zpool status`, 'ZFS pool status (if applicable)')
+      } else if (scenario==='remote_storage') {
+        add(`nfsstat -m`, 'NFS mounts stats')
+        add(`rpcinfo -p`, 'RPC services')
+        add(`iscsiadm -m session`, 'iSCSI sessions')
+      } else if (scenario==='mount_capacity') {
+        add(`df -h`, 'Capacity overview')
+        add(`du -x -h --max-depth=1 /`, 'Top-level space usage')
+      }
+    } else if (category==='compute') {
+      if (scenario==='cpu_load') {
+        add(`mpstat -P ALL 1 3`, 'Per-CPU stats')
+        add(`pidstat -u -p ALL 1 3`, 'Per-process CPU usage')
+        add(`vmstat 1 5`, 'System counters')
+      } else if (scenario==='memory_oom') {
+        add(`dmesg -T | grep -i -E 'Out of memory|oom-killer'`, 'OOM logs')
+        add(`free -m`, 'Memory usage')
+        add(`smem -t`, 'Memory by process')
+      } else if (scenario==='syscall_latency') {
+        if (pid) add(`strace -p ${pid} -tt -T`, 'Trace slow syscalls')
+        add(`perf record -g -a sleep 10 && perf report`, 'CPU profile')
+      } else if (scenario==='irq_softirq') {
+        add(`cat /proc/interrupts`, 'Hardware interrupts')
+        if (iface) add(`ethtool -S ${iface}`, 'NIC queue stats')
+        add(`cat /proc/softirqs`, 'SoftIRQ counters')
+      } else if (scenario==='scheduler_time') {
+        add(`chronyc sources -v`, 'Time sync sources')
+        add(`timedatectl`, 'Time configuration')
+      }
+    } else if (category==='container') {
+      if (scenario==='runtime_issue') {
+        add(`journalctl -u containerd -n 200 --no-pager`, 'containerd logs')
+        add(`crictl ps -a`, 'CRI containers')
+        add(`ctr -n k8s.io containers ls`, 'Containerd containers')
+      } else if (scenario==='image_pull_slow') {
+        if (image) add(`crictl pull ${image}`, 'Pull image via CRI')
+        add(`ctr -n k8s.io images ls`, 'Images in containerd')
+      } else if (scenario==='cgroups_namespace') {
+        if (pid) add(`nsenter --target ${pid} -m -u -n -i -p -t`, 'Enter namespaces')
+        add(`systemd-cgtop`, 'Cgroups top')
+      } else if (scenario==='cni_network_issue') {
+        add(`ip link && ip addr && ip route`, 'Network interfaces and routes')
+        add(`iptables -t nat -S`, 'NAT rules (kube-proxy)')
+      }
+    } else if (category==='k8s') {
+      if (scenario==='node_notready') {
+        add(`kubectl get nodes -o wide`, 'Nodes overview')
+        add(`kubectl describe node <node>`, 'Node detail')
+        add(`journalctl -u kubelet -n 200 --no-pager`, 'Kubelet logs')
+      } else if (scenario==='pod_crashloop') {
+        add(`kubectl get pods -A`, 'Pods overview')
+        add(`kubectl describe pod <pod> -n <ns>`, 'Pod events')
+        add(`kubectl logs <pod> -n <ns> --previous`, 'Container previous logs')
+      } else if (scenario==='service_dns_issue') {
+        add(`kubectl get svc,ep -A`, 'Service/Endpoints')
+        add(`kubectl exec -n <ns> -it <pod> -- nslookup <svc>`, 'In-cluster DNS resolution')
+        add(`kubectl -n kube-system logs deploy/coredns`, 'CoreDNS logs')
+      } else if (scenario==='kubeproxy_mode') {
+        add(`iptables-save -t nat`, 'kube-proxy iptables (nat)')
+        add(`kubectl -n kube-system get ds kube-proxy -o yaml`, 'kube-proxy config')
+      } else if (scenario==='cert_expiry') {
+        add(`kubeadm certs check-expiration`, 'Certificates expiry')
+      }
+    } else if (category==='lb') {
+      if (scenario==='nginx_gateway') {
+        add(`nginx -t -V`, 'Config test and build flags')
+        add(`curl -I -v https://${h}${pa}`, 'Gateway response headers')
+      } else if (scenario==='envoy_gateway') {
+        add(`curl -sS http://127.0.0.1:15000/clusters`, 'Envoy clusters')
+        add(`curl -sS http://127.0.0.1:15000/listeners`, 'Envoy listeners')
+      } else if (scenario==='haproxy_gateway') {
+        add(`echo 'show info' | socat stdio /run/haproxy/admin.sock`, 'HAProxy stats')
+      }
+    } else if (category==='security') {
+      if (scenario==='selinux_apparmor') {
+        add(`getenforce`, 'SELinux mode')
+        add(`ausearch -m avc -ts recent`, 'SELinux AVC logs')
+      } else if (scenario==='firewall_rules') {
+        add(`iptables-save`, 'iptables rules')
+        add(`nft list ruleset`, 'nftables ruleset')
+      } else if (scenario==='traffic_control') {
+        if (iface) add(`tc qdisc show dev ${iface}`, 'qdisc on iface')
+        add(`tc class show dev ${iface}`, 'classes on iface')
+        add(`tc filter show dev ${iface}`, 'filters on iface')
+      }
+    }
+    setCmds(rows)
+    dispatch(setError(''))
+    dispatch(openSnackbar({ message: 'Commands generated', severity: 'success' }))
+  }
+  const parseOutput = () => {
+    try {
+      if (parserType === 'curl') {
+        const lines = parserInput.split(/\r?\n/)
+        let status = '', finalUrl = '', total = ''
+        for (const ln of lines) {
+          if (/^<\s+HTTP\//.test(ln)) { const m = ln.match(/HTTP\/[0-9.]+\s+(\d+)/); if (m) status = m[1] }
+          if(/^\*\s+Connected to\s+/.test(ln)) { const m = ln.match(/Connected to\s+([^\s]+)/); if (m) finalUrl = m[1] }
+          if (/^\d+\.\d+$/.test(ln.trim())) { total = ln.trim() }
+        }
+        setParsedHeaders(['status','endpoint','total_time'])
+        setParsedRows([{ status, endpoint: finalUrl, total_time: total }])
+      } else if (parserType === 'mtr') {
+        const lines = parserInput.split(/\r?\n/)
+        const headers = ['hop','host','loss','avg']
+        const rows: any[] = []
+        for (const ln of lines) {
+          const m = ln.match(/^\s*(\d+)\s+([\w\-.]+)\s+(\d+\.\d+)\s+\d+\s+([\d\.]+)/)
+          if (m) rows.push({ hop: m[1], host: m[2], loss: m[3], avg: m[4] })
+        }
+        setParsedHeaders(headers)
+        setParsedRows(rows)
+      } else if (parserType === 'openssl') {
+        const lines = parserInput.split(/\r?\n/)
+        let proto = '', cipher = '', notAfter = ''
+        for (const ln of lines) {
+          if (/^\s*Protocol\s*:/.test(ln)) { const m = ln.match(/Protocol\s*:\s*(.+)/); if (m) proto = m[1] }
+          if (/^\s*Cipher\s*:/.test(ln)) { const m = ln.match(/Cipher\s*:\s*(.+)/); if (m) cipher = m[1] }
+          if (/^\s*notAfter=/.test(ln)) { const m = ln.match(/notAfter=(.+)/); if (m) notAfter = m[1] }
+        }
+        setParsedHeaders(['protocol','cipher','expires'])
+        setParsedRows([{ protocol: proto, cipher, expires: notAfter }])
+      } else if (parserType === 'iostat') {
+        const lines = parserInput.split(/\r?\n/)
+        const headers = ['device','r_s','w_s','rkB_s','wkB_s','await','util']
+        const rows: any[] = []
+        for (const ln of lines) {
+          const m = ln.match(/^(\w+)\s+([\d\.]+)\s+([\d\.]+)\s+([\d\.]+)\s+([\d\.]+)\s+([\d\.]+)\s+[\d\.]+\s+([\d\.]+)/)
+          if (m) rows.push({ device: m[1], r_s: m[2], w_s: m[3], rkB_s: m[4], wkB_s: m[5], await: m[6], util: m[7] })
+        }
+        setParsedHeaders(headers)
+        setParsedRows(rows)
+      } else if (parserType === 'iptables') {
+        const lines = parserInput.split(/\r?\n/)
+        const svcMap: Record<string, { name:string; clusterIP:string; port:string; chain:string; nodePort?:string; endpoints:string[] }> = {}
+        const sepTo: Record<string, string> = {}
+        const svcFromNodePort: Record<string, string> = {}
+        const svcFromServices: Array<{chain:string; name:string; clusterIP:string; port:string}> = []
+        const svcToSep: Array<{svc:string; sep:string}> = []
+        const nodePortRe = /^-A\s+KUBE-NODEPORTS.*?--dport\s+(\d+).*?--comment\s+"([^"]+)".*?-j\s+(KUBE-SVC-[A-Z0-9]+)/
+        const svcLineRe = /^-A\s+KUBE-SERVICES.*?-d\s+(\d+\.\d+\.\d+\.\d+)\/32.*?--dport\s+(\d+).*?--comment\s+"([^"]+)".*?-j\s+(KUBE-SVC-[A-Z0-9]+)/
+        const svcSepRe = /^-A\s+(KUBE-SVC-[A-Z0-9]+).*?-j\s+(KUBE-SEP-[A-Z0-9]+)/
+        const sepDnatRe = /^-A\s+(KUBE-SEP-[A-Z0-9]+).*?-j\s+DNAT\s+--to-destination\s+([0-9.]+):(\d+)/
+        for (const ln of lines) {
+          let m
+          if ((m = nodePortRe.exec(ln))) {
+            const port = m[1], comment = m[2], chain = m[3]
+            svcFromNodePort[chain] = port
+          } else if ((m = svcLineRe.exec(ln))) {
+            const cip = m[1], dport = m[2], comment = m[3], chain = m[4]
+            const name = comment.split(' ')[0] || comment
+            svcFromServices.push({ chain, name, clusterIP: cip, port: dport })
+          } else if ((m = svcSepRe.exec(ln))) {
+            const svc = m[1], sep = m[2]
+            svcToSep.push({ svc, sep })
+          } else if ((m = sepDnatRe.exec(ln))) {
+            const sep = m[1], ip = m[2], port = m[3]
+            sepTo[sep] = `${ip}:${port}`
+          }
+        }
+        for (const s of svcFromServices) {
+          if (!svcMap[s.chain]) svcMap[s.chain] = { name: s.name, clusterIP: s.clusterIP, port: s.port, chain: s.chain, endpoints: [] }
+          const np = svcFromNodePort[s.chain]
+          if (np) svcMap[s.chain].nodePort = np
+        }
+        for (const rel of svcToSep) {
+          const to = sepTo[rel.sep]
+          if (to && svcMap[rel.svc]) svcMap[rel.svc].endpoints.push(rel.sep)
+        }
+        const svcRowsOut: Array<{name:string, clusterIP:string, port:string, nodePort?:string, chain:string, endpoints:string[]}> = Object.values(svcMap)
+        const epRowsOut: Array<{svcChain:string, sepChain:string, to:string}> = []
+        for (const rel of svcToSep) {
+          const to = sepTo[rel.sep]
+          if (to) epRowsOut.push({ svcChain: rel.svc, sepChain: rel.sep, to })
+        }
+        setSvcRows(svcRowsOut)
+        setEpRows(epRowsOut)
+        setParsedHeaders([])
+        setParsedRows([])
+      }
+      dispatch(setError(''))
+      dispatch(openSnackbar({ message: 'Parsed output', severity: 'success' }))
+    } catch {
+      setParsedHeaders([]); setParsedRows([]); dispatch(setError('Parse failed'))
+    }
+  }
+  return (
+    <Container sx={{ mt: 4 }}>
+      <Typography variant="h5" gutterBottom>Diagnostics CLI Generator</Typography>
+      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      
+      <Grid container spacing={4}>
+        <Grid item xs={12} md={12}>
+          <Card sx={{ bgcolor: 'rgba(255,255,255,0.06)' }}>
+            <CardContent sx={{ p:3 }}>
+              <Grid container spacing={2}>
+                <Grid item xs={12} md={3}>
+                  <FormControl fullWidth>
+                    <InputLabel id="cat">Category</InputLabel>
+                    <Select labelId="cat" label="Category" value={category} onChange={e=>{ const v = e.target.value as any; setCategory(v); setScenario(scenarioOptions[v][0].value as any) }}>
+                      <MenuItem value="network">Network</MenuItem>
+                      <MenuItem value="storage">Storage</MenuItem>
+                      <MenuItem value="compute">Compute</MenuItem>
+                      <MenuItem value="container">Container</MenuItem>
+                      <MenuItem value="k8s">Kubernetes</MenuItem>
+                      <MenuItem value="lb">LB/Gateway</MenuItem>
+                      <MenuItem value="security">Security</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid item xs={12} md={3}>
+                  <FormControl fullWidth>
+                    <InputLabel id="scn">Scenario</InputLabel>
+                    <Select labelId="scn" label="Scenario" value={scenario} onChange={e=>setScenario(e.target.value as any)}>
+                      {scenarioOptions[category].map(opt => (
+                        <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid item xs={12} md={3}>
+                  <FormControl fullWidth>
+                    <InputLabel id="os">OS</InputLabel>
+                    <Select labelId="os" label="OS" value={os} onChange={e=>setOs(e.target.value as any)}>
+                      <MenuItem value="macos">macOS</MenuItem>
+                      <MenuItem value="linux">Linux</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+                {(category==='network' || category==='lb') && (
+                  <Grid item xs={12} md={6}><TextField label="Host/Domain" value={host} onChange={e=>setHost(e.target.value)} fullWidth /></Grid>
+                )}
+                {(category==='network' && scenario==='dns_resolve_issue') && (
+                  <Grid item xs={12} md={4}><TextField label="Resolver (optional)" value={resolver} onChange={e=>setResolver(e.target.value)} fullWidth /></Grid>
+                )}
+                {(category==='network' && (scenario==='tls_error' || scenario==='site_slow' || scenario==='http3_unreachable')) && (
+                  <Grid item xs={12} md={2}><TextField label="Port" value={port} onChange={e=>setPort(e.target.value)} fullWidth /></Grid>
+                )}
+                {(category==='network' && scenario!=='dns_resolve_issue') && (
+                  <Grid item xs={12} md={4}><TextField label="Path" value={path} onChange={e=>setPath(e.target.value)} fullWidth /></Grid>
+                )}
+                {(category==='network' && scenario==='tls_error') && (
+                  <Grid item xs={12} md={4}><TextField label="Origin IP (optional)" value={originIp} onChange={e=>setOriginIp(e.target.value)} fullWidth /></Grid>
+                )}
+                <Grid item xs={12} md={2}><TextField type="number" label="Samples" value={samples} onChange={e=>setSamples(Number(e.target.value))} fullWidth /></Grid>
+                <Grid item xs={12} md={2}><TextField type="number" label="Timeout(s)" value={timeout} onChange={e=>setTimeoutVal(Number(e.target.value))} fullWidth /></Grid>
+                {category==='storage' && scenario==='disk_io_issue' && (
+                  <Grid item xs={12} md={4}><TextField label="Device" value={device} onChange={e=>setDevice(e.target.value)} fullWidth /></Grid>
+                )}
+                {category==='compute' && (scenario==='syscall_latency' || scenario==='cgroups_namespace') && (
+                  <Grid item xs={12} md={3}><TextField label="PID (optional)" value={pid} onChange={e=>setPid(e.target.value)} fullWidth /></Grid>
+                )}
+                {(category==='compute' || category==='security') && (
+                  <Grid item xs={12} md={3}><TextField label="Interface (optional)" value={iface} onChange={e=>setIface(e.target.value)} fullWidth /></Grid>
+                )}
+                {category==='container' && scenario==='image_pull_slow' && (
+                  <Grid item xs={12} md={4}><TextField label="Image (optional)" value={image} onChange={e=>setImage(e.target.value)} fullWidth /></Grid>
+                )}
+                <Grid item xs={12} md={3}><Button variant="contained" onClick={gen}>Generate</Button></Grid>
+              </Grid>
+              <Box sx={{ mt:2 }}>
+                {cmds.length>0 && (
+                  <TableContainer component={Paper} sx={{ background:'rgba(255,255,255,0.06)' }}>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Command</TableCell>
+                          <TableCell>Purpose</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {cmds.map((row, idx)=> (
+                          <TableRow key={idx}>
+                            <TableCell sx={{ fontFamily:'monospace' }}>{row.cmd}</TableCell>
+                            <TableCell>{row.desc}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                )}
+                
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} md={12}>
+          <Card sx={{ bgcolor: 'rgba(255,255,255,0.06)' }}>
+            <CardContent sx={{ p:3 }}>
+              <Typography variant="h6">Result Parsers</Typography>
+              <Grid container spacing={2} sx={{ mt:1 }}>
+                <Grid item xs={12} md={3}>
+                  <FormControl fullWidth>
+                    <InputLabel id="parser">Parser</InputLabel>
+                    <Select labelId="parser" label="Parser" value={parserType} onChange={e=>setParserType(e.target.value as any)}>
+                      <MenuItem value="curl">curl -v / headers</MenuItem>
+                      <MenuItem value="mtr">mtr/traceroute</MenuItem>
+                      <MenuItem value="openssl">openssl s_client</MenuItem>
+                      <MenuItem value="iostat">iostat -x</MenuItem>
+                      <MenuItem value="iptables">k8s iptables (nat)</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+              </Grid>
+              <BigText label="Paste output" value={parserInput} onChange={setParserInput} onExecute={parseOutput} />
+              <Box sx={{ mt:1 }}>
+                <Button variant="contained" onClick={parseOutput}>Parse</Button>
+              </Box>
+              {parsedRows.length>0 && (
+                <TableContainer component={Paper} sx={{ mt:2, background:'rgba(255,255,255,0.06)' }}>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        {parsedHeaders.map((h, idx)=>(<TableCell key={idx}>{h}</TableCell>))}
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {parsedRows.map((row, idx)=>(
+                        <TableRow key={idx}>
+                          {parsedHeaders.map((h, jdx)=>(<TableCell key={jdx} sx={{ fontFamily:'monospace' }}>{row[h]}</TableCell>))}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+              {(parserType==='iptables') && (svcRows.length>0 || epRows.length>0) && (
+                <Box>
+                  <TableContainer component={Paper} sx={{ mt:2, background:'rgba(255,255,255,0.06)' }}>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Namespace/Service</TableCell>
+                          <TableCell>ClusterIP</TableCell>
+                          <TableCell>Port</TableCell>
+                          <TableCell>NodePort</TableCell>
+                          <TableCell>Chain</TableCell>
+                          <TableCell>Endpoints</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {svcRows.map((s, idx)=> (
+                          <TableRow key={idx}>
+                            <TableCell sx={{ fontFamily:'monospace' }}>{s.name}</TableCell>
+                            <TableCell sx={{ fontFamily:'monospace' }}>{s.clusterIP || '-'}</TableCell>
+                            <TableCell sx={{ fontFamily:'monospace' }}>{s.port || '-'}</TableCell>
+                            <TableCell sx={{ fontFamily:'monospace' }}>{s.nodePort || '-'}</TableCell>
+                            <TableCell sx={{ fontFamily:'monospace' }}>{s.chain}</TableCell>
+                            <TableCell sx={{ fontFamily:'monospace' }}>{s.endpoints.length}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                  <TableContainer component={Paper} sx={{ mt:2, background:'rgba(255,255,255,0.06)' }}>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Service Chain</TableCell>
+                          <TableCell>Endpoint Chain</TableCell>
+                          <TableCell>DNAT → IP:Port</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {epRows.map((e, idx)=> (
+                          <TableRow key={idx}>
+                            <TableCell sx={{ fontFamily:'monospace' }}>{e.svcChain}</TableCell>
+                            <TableCell sx={{ fontFamily:'monospace' }}>{e.sepChain}</TableCell>
+                            <TableCell sx={{ fontFamily:'monospace' }}>{e.to || '-'}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </Box>
+              )}
+              
+            </CardContent>
+          </Card>
+        </Grid>
+        
+      </Grid>
+    </Container>
+  )
+}

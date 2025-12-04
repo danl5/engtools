@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { ThemeProvider, createTheme } from '@mui/material/styles'
 import Loader from './components/Loader'
 import Tools from './pages/Tools'
+import Diagnostics from './pages/Diagnostics'
 import Json from './pages/Json'
 import TextTools from './pages/Text'
 import Crypto from './pages/Crypto'
@@ -86,7 +87,7 @@ const theme = createTheme({
 })
 
 export default function App() {
-  const [tab, setTab] = useState<'tools' | 'json' | 'text' | 'ipdom' | 'crypto' | 'cert'>('tools')
+  const [tab, setTab] = useState<'tools' | 'diagnostics' | 'json' | 'text' | 'ipdom' | 'crypto' | 'cert'>('tools')
   const snackbar = useSelector((s: RootState) => s.ui.snackbar)
   return (
     <ThemeProvider theme={theme}>
@@ -111,8 +112,9 @@ export default function App() {
             <Tab label="IP&Domain" value="ipdom" />
             <Tab label="Crypto" value="crypto" />
             <Tab label="Cert" value="cert" />
+            <Tab label="Diagnostics" value="diagnostics" />
           </Tabs>
-          {tab==='tools'? <Tools/> : tab==='json' ? <Json/> : tab==='text' ? <TextTools/> : tab==='ipdom' ? <IpDomain/> : tab==='crypto' ? <Crypto/> : <Cert/>}
+          {tab==='tools'? <Tools/> : tab==='diagnostics' ? <Diagnostics/> : tab==='json' ? <Json/> : tab==='text' ? <TextTools/> : tab==='ipdom' ? <IpDomain/> : tab==='crypto' ? <Crypto/> : <Cert/>}
         </Container>
         <Box sx={{ mt: 'auto', py: 2, textAlign: 'center' }}>
           <Typography variant="body2" sx={{ opacity: 0.85 }}>

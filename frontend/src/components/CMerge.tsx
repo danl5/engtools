@@ -56,6 +56,7 @@ export default function CMerge({ left, right, collapse }: { left: string; right:
       })
       const a = EditorState.create({ doc: left, extensions: [vividTheme] })
       const b = EditorState.create({ doc: right, extensions: [vividTheme] })
+      if (containerRef.current) containerRef.current.innerHTML = ''
       view = new MergeView({
         a,
         b,
@@ -63,7 +64,7 @@ export default function CMerge({ left, right, collapse }: { left: string; right:
         orientation: 'a-b',
         highlightChanges: true,
         gutter: true,
-        collapseUnchanged: collapse ? { margin: 2, minSize: 4 } : undefined
+        collapseUnchanged: collapse ? { margin: 0, minSize: 1 } : undefined
       })
     })()
     return () => { disposed = true; if (view && view.destroy) view.destroy() }

@@ -1,4 +1,4 @@
-import { Container, Typography, Grid, Card, CardContent, FormControl, InputLabel, Select, MenuItem, TextField, Button, Table, TableBody, TableCell, TableHead, TableRow, TableContainer, Paper, Box, Alert } from '@mui/material'
+import { Container, Typography, Grid, Card, CardContent, FormControl, InputLabel, Select, MenuItem, TextField, Button, Table, TableBody, TableCell, TableHead, TableRow, TableContainer, Paper, Box, Alert, ToggleButtonGroup, ToggleButton } from '@mui/material'
 import { useDispatch, useSelector } from 'react-redux'
 import { useState } from 'react'
 import { RootState, setError, openSnackbar } from '../store'
@@ -29,6 +29,8 @@ export default function Diagnostics() {
   const [parserInput, setParserInput] = useState('')
   const [parsedHeaders, setParsedHeaders] = useState<string[]>([])
   const [parsedRows, setParsedRows] = useState<any[]>([])
+  const sanitize = (t: string) => t.replace(/\x1B\[[0-9;]*[A-Za-z]/g, '').replace(/\r/g, '')
+  const [parserView, setParserView] = useState<'raw'|'parsed'>('raw')
   
   const scenarioOptions: Record<string, Array<{value:string,label:string}>> = {
     network: [
@@ -216,56 +218,133 @@ export default function Diagnostics() {
   const parseOutput = () => {
     try {
       if (parserType === 'curl') {
-        const lines = parserInput.split(/\r?\n/)
-        let status = '', finalUrl = '', total = ''
+        const text = sanitize(parserInput)
+        const lines = text.split(/\n/)
+        let status = '', finalUrl = '', total = '', http = '', server = '', date = ''
         for (const ln of lines) {
-          if (/^<\s+HTTP\//.test(ln)) { const m = ln.match(/HTTP\/[0-9.]+\s+(\d+)/); if (m) status = m[1] }
+          if (/^<\s+HTTP\//.test(ln)) { const m1 = ln.match(/HTTP\/([0-9.]+)/); if (m1) http = m1[1]; const m2 = ln.match(/HTTP\/[0-9.]+\s+(\d+)/); if (m2) status = m2[1] }
           if(/^\*\s+Connected to\s+/.test(ln)) { const m = ln.match(/Connected to\s+([^\s]+)/); if (m) finalUrl = m[1] }
           if (/^\d+\.\d+$/.test(ln.trim())) { total = ln.trim() }
+          if (/^<\s+Server:/i.test(ln)) { const m = ln.match(/Server:\s*(.+)/i); if (m) server = m[1] }
+          if (/^<\s+Date:/i.test(ln)) { const m = ln.match(/Date:\s*(.+)/i); if (m) date = m[1] }
         }
-        setParsedHeaders(['status','endpoint','total_time'])
-        setParsedRows([{ status, endpoint: finalUrl, total_time: total }])
+        setParsedHeaders(['http','status','endpoint','server','date','total_time'])
+        setParsedRows([{ http, status, endpoint: finalUrl, server, date, total_time: total }])
       } else if (parserType === 'mtr') {
-        const lines = parserInput.split(/\r?\n/)
-        const headers = ['hop','host','loss','avg']
-        const rows: any[] = []
-        for (const ln of lines) {
-          const m = ln.match(/^\s*(\d+)\s+([\w\-.]+)\s+(\d+\.\d+)\s+\d+\s+([\d\.]+)/)
-          if (m) rows.push({ hop: m[1], host: m[2], loss: m[3], avg: m[4] })
+        const text = sanitize(parserInput)
+        const lines = text.split(/\n/)
+        let headerIdx = -1
+        for (let i = 0; i < lines.length; i++) {
+          if (/Loss%/i.test(lines[i]) && /Avg/i.test(lines[i])) { headerIdx = i; break }
         }
-        setParsedHeaders(headers)
-        setParsedRows(rows)
+        if (headerIdx === -1) {
+          setParsedHeaders(['raw']); setParsedRows([{ raw: text.slice(0, 2000) }])
+        } else {
+          const hdrTokens = lines[headerIdx].trim().split(/\s+/)
+          const lower = hdrTokens.map(h=>h.toLowerCase())
+          const find = (name: string) => lower.indexOf(name.toLowerCase())
+          const idxMap: Record<string, number> = {
+            loss: find('loss%'),
+            snt: find('snt'),
+            last: find('last'),
+            avg: find('avg'),
+            best: find('best'),
+            wrst: find('wrst'),
+            stdev: find('stdev')
+          }
+          const presentHeaders = ['hop','host', ...Object.keys(idxMap).filter(k=>idxMap[k] !== -1)]
+          const rows: any[] = []
+          for (let i = headerIdx + 1; i < lines.length; i++) {
+            const ln = lines[i]
+            if (!ln.trim()) continue
+            const parts = ln.trim().split(/\s+/)
+            if (!/^\d+/.test(parts[0])) continue
+            const row: any = { hop: parts[0], host: parts[1] }
+            for (const k of Object.keys(idxMap)) {
+              const j = idxMap[k]
+              if (j !== -1 && j < parts.length) row[k] = parts[j]
+            }
+            rows.push(row)
+          }
+          setParsedHeaders(presentHeaders)
+          setParsedRows(rows)
+        }
       } else if (parserType === 'openssl') {
-        const lines = parserInput.split(/\r?\n/)
-        let proto = '', cipher = '', notAfter = ''
+        const text = sanitize(parserInput)
+        const lines = text.split(/\n/)
+        let proto = '', cipher = '', notAfter = '', notBefore = '', subject = '', issuer = ''
         for (const ln of lines) {
           if (/^\s*Protocol\s*:/.test(ln)) { const m = ln.match(/Protocol\s*:\s*(.+)/); if (m) proto = m[1] }
           if (/^\s*Cipher\s*:/.test(ln)) { const m = ln.match(/Cipher\s*:\s*(.+)/); if (m) cipher = m[1] }
           if (/^\s*notAfter=/.test(ln)) { const m = ln.match(/notAfter=(.+)/); if (m) notAfter = m[1] }
+          if (/^\s*notBefore=/.test(ln)) { const m = ln.match(/notBefore=(.+)/); if (m) notBefore = m[1] }
+          if (/^\s*subject=/.test(ln)) { const m = ln.match(/subject=(.+)/); if (m) subject = m[1] }
+          if (/^\s*issuer=/.test(ln)) { const m = ln.match(/issuer=(.+)/); if (m) issuer = m[1] }
         }
-        setParsedHeaders(['protocol','cipher','expires'])
-        setParsedRows([{ protocol: proto, cipher, expires: notAfter }])
+        setParsedHeaders(['protocol','cipher','subject','issuer','not_before','not_after'])
+        setParsedRows([{ protocol: proto, cipher, subject, issuer, not_before: notBefore, not_after: notAfter }])
       } else if (parserType === 'iostat') {
-        const lines = parserInput.split(/\r?\n/)
-        const headers = ['device','r_s','w_s','rkB_s','wkB_s','await','util']
-        const rows: any[] = []
-        for (const ln of lines) {
-          const m = ln.match(/^(\w+)\s+([\d\.]+)\s+([\d\.]+)\s+([\d\.]+)\s+([\d\.]+)\s+([\d\.]+)\s+[\d\.]+\s+([\d\.]+)/)
-          if (m) rows.push({ device: m[1], r_s: m[2], w_s: m[3], rkB_s: m[4], wkB_s: m[5], await: m[6], util: m[7] })
+        const text = sanitize(parserInput)
+        const lines = text.split(/\n/)
+        let headerIdx = -1
+        for (let i = 0; i < lines.length; i++) {
+          if (/^\s*Device\b/i.test(lines[i]) && /util\b/i.test(lines[i])) headerIdx = i
         }
-        setParsedHeaders(headers)
-        setParsedRows(rows)
+        if (headerIdx === -1) {
+          setParsedHeaders(['raw']); setParsedRows([{ raw: text.slice(0, 2000) }])
+        } else {
+          const hdrTokens = lines[headerIdx].trim().split(/\s+/)
+          const findIdx = (names: string[]) => {
+            const lower = hdrTokens.map(h=>h.toLowerCase())
+            for (const name of names) {
+              const j = lower.indexOf(name.toLowerCase())
+              if (j !== -1) return j
+            }
+            return -1
+          }
+          const idxMap: Record<string, number> = {
+            device: findIdx(['Device']),
+            r_s: findIdx(['r/s','rs']),
+            w_s: findIdx(['w/s','ws']),
+            rkB_s: findIdx(['rkB/s','rKB/s','r_kB/s']),
+            wkB_s: findIdx(['wkB/s','wKB/s','w_kB/s']),
+            await: findIdx(['await']),
+            util: findIdx(['%util','util%','util'])
+          }
+          const presentHeaders = Object.keys(idxMap).filter(k => idxMap[k] !== -1)
+          const rows: any[] = []
+          for (let i = headerIdx + 1; i < lines.length; i++) {
+            const ln = lines[i]
+            if (!ln.trim() || /avg-cpu:/i.test(ln) || /^\s*Linux/i.test(ln)) continue
+            const parts = ln.trim().split(/\s+/)
+            const row: any = {}
+            // Skip non-data lines
+            if (parts.length < 2) continue
+            for (const k of presentHeaders) {
+              const j = idxMap[k]
+              if (j >= 0 && j < parts.length) row[k] = parts[j]
+            }
+            if (row.device) rows.push(row)
+          }
+          if (rows.length === 0) {
+            setParsedHeaders(['raw']); setParsedRows([{ raw: text.slice(0, 2000) }])
+          } else {
+            setParsedHeaders(presentHeaders)
+            setParsedRows(rows)
+          }
+        }
       } else if (parserType === 'iptables') {
-        const lines = parserInput.split(/\r?\n/)
+        const text = sanitize(parserInput)
+        const lines = text.split(/\n/)
         const svcMap: Record<string, { name:string; clusterIP:string; port:string; chain:string; nodePort?:string; endpoints:string[] }> = {}
         const sepTo: Record<string, string> = {}
         const svcFromNodePort: Record<string, string> = {}
         const svcFromServices: Array<{chain:string; name:string; clusterIP:string; port:string}> = []
         const svcToSep: Array<{svc:string; sep:string}> = []
-        const nodePortRe = /^-A\s+KUBE-NODEPORTS.*?--dport\s+(\d+).*?--comment\s+"([^"]+)".*?-j\s+(KUBE-SVC-[A-Z0-9]+)/
-        const svcLineRe = /^-A\s+KUBE-SERVICES.*?-d\s+(\d+\.\d+\.\d+\.\d+)\/32.*?--dport\s+(\d+).*?--comment\s+"([^"]+)".*?-j\s+(KUBE-SVC-[A-Z0-9]+)/
-        const svcSepRe = /^-A\s+(KUBE-SVC-[A-Z0-9]+).*?-j\s+(KUBE-SEP-[A-Z0-9]+)/
-        const sepDnatRe = /^-A\s+(KUBE-SEP-[A-Z0-9]+).*?-j\s+DNAT\s+--to-destination\s+([0-9.]+):(\d+)/
+        const nodePortRe = new RegExp('^-A\\s+KUBE-NODEPORTS.*?--dport\\s+(\\d+).*?(?:--comment\\s+"([^"]+)")?.*?-j\\s+(KUBE-SVC-[A-Z0-9]+)','i')
+        const svcLineRe = new RegExp('^-A\\s+KUBE-SERVICES.*?-d\\s+(\\d+\\.\\d+\\.\\d+\\.\\d+)\\/32.*?--dport\\s+(\\d+).*?(?:--comment\\s+"([^"]+)")?.*?-j\\s+(KUBE-SVC-[A-Z0-9]+)','i')
+        const svcSepRe = new RegExp('^-A\\s+(KUBE-SVC-[A-Z0-9]+).*?-j\\s+(KUBE-SEP-[A-Z0-9]+)','i')
+        const sepDnatRe = new RegExp('^-A\\s+(KUBE-SEP-[A-Z0-9]+).*?-j\\s+DNAT\\s+--to-destination\\s+([0-9.]+):(\\d+)','i')
         for (const ln of lines) {
           let m
           if ((m = nodePortRe.exec(ln))) {
@@ -273,7 +352,7 @@ export default function Diagnostics() {
             svcFromNodePort[chain] = port
           } else if ((m = svcLineRe.exec(ln))) {
             const cip = m[1], dport = m[2], comment = m[3], chain = m[4]
-            const name = comment.split(' ')[0] || comment
+            const name = comment ? (comment.split(' ')[0] || comment) : chain
             svcFromServices.push({ chain, name, clusterIP: cip, port: dport })
           } else if ((m = svcSepRe.exec(ln))) {
             const svc = m[1], sep = m[2]
@@ -306,7 +385,7 @@ export default function Diagnostics() {
       dispatch(setError(''))
       dispatch(openSnackbar({ message: 'Parsed output', severity: 'success' }))
     } catch {
-      setParsedHeaders([]); setParsedRows([]); dispatch(setError('Parse failed'))
+      setParsedHeaders(['raw']); setParsedRows([{ raw: sanitize(parserInput).slice(0, 2000) }]); dispatch(setError('Parse failed'))
     }
   }
   return (
@@ -427,11 +506,21 @@ export default function Diagnostics() {
                   </FormControl>
                 </Grid>
               </Grid>
-              <BigText label="Paste output" value={parserInput} onChange={setParserInput} onExecute={parseOutput} />
+              <BigText label="Paste output" value={parserInput} onChange={val=>{ setParserInput(val) }} onExecute={parseOutput} />
               <Box sx={{ mt:1 }}>
-                <Button variant="contained" onClick={parseOutput}>Parse</Button>
+                <Grid container spacing={2} alignItems="center">
+                  <Grid item>
+                    <Button variant="contained" onClick={parseOutput}>Parse</Button>
+                  </Grid>
+                  <Grid item>
+                    <ToggleButtonGroup size="small" value={parserView} exclusive onChange={(_,v)=>{ if (v) setParserView(v) }}>
+                      <ToggleButton value="raw">Raw</ToggleButton>
+                      <ToggleButton value="parsed">Parsed</ToggleButton>
+                    </ToggleButtonGroup>
+                  </Grid>
+                </Grid>
               </Box>
-              {parsedRows.length>0 && (
+              {parserView==='parsed' && parsedRows.length>0 && (
                 <TableContainer component={Paper} sx={{ mt:2, background:'rgba(255,255,255,0.06)' }}>
                   <Table size="small">
                     <TableHead>
@@ -449,7 +538,7 @@ export default function Diagnostics() {
                   </Table>
                 </TableContainer>
               )}
-              {(parserType==='iptables') && (svcRows.length>0 || epRows.length>0) && (
+              {parserView==='parsed' && (parserType==='iptables') && (svcRows.length>0 || epRows.length>0) && (
                 <Box>
                   <TableContainer component={Paper} sx={{ mt:2, background:'rgba(255,255,255,0.06)' }}>
                     <Table size="small">
@@ -497,6 +586,11 @@ export default function Diagnostics() {
                       </TableBody>
                     </Table>
                   </TableContainer>
+                </Box>
+              )}
+              {parserView==='raw' && (
+                <Box sx={{ mt:2, p:2, borderRadius:1, border:'1px solid rgba(255,255,255,0.12)', background:'rgba(255,255,255,0.04)', fontFamily:'monospace', whiteSpace:'pre-wrap' }}>
+                  {sanitize(parserInput)}
                 </Box>
               )}
               

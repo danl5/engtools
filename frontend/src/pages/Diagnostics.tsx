@@ -9,7 +9,7 @@ export default function Diagnostics() {
   const error = useSelector((s: RootState) => s.ui.error)
   const [category, setCategory] = useState<'network'|'storage'|'compute'|'container'|'k8s'|'lb'|'security'>('network')
   const [scenario, setScenario] = useState<'dns_resolve_issue'|'site_slow'|'tls_error'|'http3_unreachable'|'proxy_issue'|'mtu_blackhole'|'disk_io_issue'|'fs_errors'|'raid_lvm'|'remote_storage'|'mount_capacity'|'cpu_load'|'memory_oom'|'syscall_latency'|'irq_softirq'|'scheduler_time'|'runtime_issue'|'image_pull_slow'|'cgroups_namespace'|'cni_network_issue'|'node_notready'|'pod_crashloop'|'service_dns_issue'|'kubeproxy_mode'|'cert_expiry'|'nginx_gateway'|'envoy_gateway'|'haproxy_gateway'|'selinux_apparmor'|'firewall_rules'|'traffic_control'>('dns_resolve_issue')
-  const [os, setOs] = useState<'macos'|'linux'>('macos')
+  const [os, setOs] = useState<'macos'|'linux'>('linux')
   const [host, setHost] = useState('')
   const [resolver, setResolver] = useState('')
   const [port, setPort] = useState('443')

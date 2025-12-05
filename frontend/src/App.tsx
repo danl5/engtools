@@ -110,7 +110,7 @@ export default function App() {
             <Tab label="JSON" value="json" />
             <Tab label="Text" value="text" />
             <Tab label="IP&Domain" value="ipdom" />
-            <Tab label="Crypto" value="crypto" />
+            <Tab label="Encryption" value="crypto" />
             <Tab label="Cert" value="cert" />
             <Tab label="Diagnostics" value="diagnostics" />
           </Tabs>

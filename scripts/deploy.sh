@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-DOMAIN=""
+DOMAIN="engtools.tech"
 FRONTEND_PORT="443"
 BACKEND_PORT="8080"
 IPINFO_TOKEN="${IPINFO_TOKEN:-}"

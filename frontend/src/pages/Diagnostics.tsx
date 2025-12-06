@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from 'react-redux'
 import { useState } from 'react'
 import { RootState, setError, openSnackbar } from '../store'
 import BigText from '../components/BigText'
+import { trackEvent } from '../analytics'
 
 export default function Diagnostics() {
   const dispatch = useDispatch()
@@ -214,6 +215,7 @@ export default function Diagnostics() {
     setCmds(rows)
     dispatch(setError(''))
     dispatch(openSnackbar({ message: 'Commands generated', severity: 'success' }))
+    trackEvent('diagnostics_generate', { category, scenario, os })
   }
   const parseOutput = () => {
     try {
@@ -384,6 +386,7 @@ export default function Diagnostics() {
       }
       dispatch(setError(''))
       dispatch(openSnackbar({ message: 'Parsed output', severity: 'success' }))
+      trackEvent('diagnostics_parse', { parser: parserType })
     } catch {
       setParsedHeaders(['raw']); setParsedRows([{ raw: sanitize(parserInput).slice(0, 2000) }]); dispatch(setError('Parse failed'))
     }

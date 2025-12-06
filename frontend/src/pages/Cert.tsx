@@ -5,6 +5,7 @@ import api from '../api'
 import { useDispatch, useSelector } from 'react-redux'
 import { RootState } from '../store'
 import { setError, setLoading, openSnackbar } from '../store'
+import { trackEvent } from '../analytics'
 
 export default function Cert() {
   const dispatch = useDispatch()
@@ -33,6 +34,7 @@ export default function Cert() {
       const { data } = await api.post('/v1/cert/parse', { pem: pemClean })
       setParseOut(data); dispatch(setError(''))
       dispatch(openSnackbar({ message: 'Parsed certificate', severity: 'success' }))
+      trackEvent('cert_parse')
     } catch (e) { dispatch(setError('Parse failed')) } finally { dispatch(setLoading(false)) }
   }
   const inspect = async () => {
@@ -46,7 +48,7 @@ export default function Cert() {
       const idx = hostClean.indexOf(':'); if (idx>0) hostClean = hostClean.slice(0, idx)
       const { data } = await api.post('/v1/tls/inspect', { host: hostClean, port })
       if (data.error) { setInspectOut(null); dispatch(setError(data.error)); }
-      else { setInspectOut(data); dispatch(setError('')); dispatch(openSnackbar({ message: 'Fetched remote chain', severity: 'success' })) }
+      else { setInspectOut(data); dispatch(setError('')); dispatch(openSnackbar({ message: 'Fetched remote chain', severity: 'success' })); trackEvent('cert_inspect', { host: hostClean, port }) }
     } catch (err:any) { dispatch(setError('Inspect failed')) } finally { dispatch(setLoading(false)) }
   }
   const verify = async () => {
@@ -59,6 +61,7 @@ export default function Cert() {
       const { data } = await api.post('/v1/cert/verify', { chain_pem: chain, roots_pem: roots, server_name: serverName })
       setVerifyOut(data); dispatch(setError(''))
       dispatch(openSnackbar({ message: 'Verification done', severity: 'success' }))
+      trackEvent('cert_verify', { ok: !!data.ok })
     } catch { dispatch(setError('Verify failed')) } finally { dispatch(setLoading(false)) }
   }
   const csrGenerate = async () => {
@@ -72,6 +75,7 @@ export default function Cert() {
       const { data } = await api.post('/v1/cert/csr/generate', { cn: subj.cn, o: subj.o, ou: subj.ou, l: subj.l, st: subj.st, c: subj.c, san_dns: san, key_type: keyType, bits, curve })
       setCsrOut(data); dispatch(setError(''))
       dispatch(openSnackbar({ message: 'CSR generated', severity: 'success' }))
+      trackEvent('cert_csr_generate', { keyType, bits, curve })
     } catch { dispatch(setError('CSR generate failed')) } finally { dispatch(setLoading(false)) }
   }
   const toDer = async () => {
@@ -81,6 +85,7 @@ export default function Cert() {
       const pemClean = pem.replace(/\r\n/g, '\n').replace(/^\s*\n+/, '').replace(/\n+\s*$/, '').trim()
       const { data } = await api.post('/v1/cert/convert/to_der', { pem: pemClean });
       setConvertOut({ der_base64: data.der_base64 }); dispatch(setError(''))
+      trackEvent('cert_convert_to_der')
     } catch { dispatch(setError('Convert failed')) } finally { dispatch(setLoading(false)) }
   }
   const [derIn, setDerIn] = useState('')
@@ -88,7 +93,7 @@ export default function Cert() {
   const toPem = async () => {
     if (!derIn) { dispatch(setError('Please paste DER(Base64)')); return }
     dispatch(setLoading(true))
-    try { const { data } = await api.post('/v1/cert/convert/to_pem', { der_base64: derIn.trim() }); setConvertOut({ pem: data.pem }); dispatch(setError('')) } catch { dispatch(setError('Convert failed')) } finally { dispatch(setLoading(false)) }
+    try { const { data } = await api.post('/v1/cert/convert/to_pem', { der_base64: derIn.trim() }); setConvertOut({ pem: data.pem }); dispatch(setError('')); trackEvent('cert_convert_to_pem') } catch { dispatch(setError('Convert failed')) } finally { dispatch(setLoading(false)) }
   }
   const splitPem = (s: string) => { const blocks: string[] = []; const re = /-----BEGIN[^-]+-----[\s\S]*?-----END[^-]+-----/g; let m; while ((m = re.exec(s))){ blocks.push(m[0]) } return blocks }
   return (

@@ -5,6 +5,7 @@ import { RootState } from '../store'
 import { setLoading, setError, openSnackbar } from '../store'
 import { useState } from 'react'
 import api from '../api'
+import { trackEvent } from '../analytics'
 
 export default function IpDomain() {
   const dispatch = useDispatch()
@@ -27,6 +28,7 @@ export default function IpDomain() {
       setIpRes(data)
       dispatch(setError(''))
       dispatch(openSnackbar({ message: 'IP info fetched', severity: 'success' }))
+      trackEvent('ipgeo_lookup')
     } catch { dispatch(setError('IP lookup failed')) } finally { dispatch(setLoading(false)) }
   }
   const whoisLookup = async () => {
@@ -38,6 +40,7 @@ export default function IpDomain() {
       setWhoisInfo(data)
       dispatch(setError(''))
       dispatch(openSnackbar({ message: 'WHOIS fetched', severity: 'success' }))
+      trackEvent('whois_lookup')
     } catch { dispatch(setError('WHOIS lookup failed')) } finally { dispatch(setLoading(false)) }
   }
   const digLookup = async () => {
@@ -49,6 +52,7 @@ export default function IpDomain() {
       setDigRes(data)
       dispatch(setError(''))
       dispatch(openSnackbar({ message: 'Dig done', severity: 'success' }))
+      trackEvent('dns_query', { type: digType })
     } catch { dispatch(setError('Dig failed')) } finally { dispatch(setLoading(false)) }
   }
   return (

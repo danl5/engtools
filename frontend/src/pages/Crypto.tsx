@@ -4,6 +4,7 @@ import { useDispatch, useSelector } from 'react-redux'
 import api from '../api'
 import { setLoading, setError } from '../store'
 import { RootState } from '../store'
+import { trackEvent } from '../analytics'
 
 export default function Crypto() {
   const dispatch = useDispatch()
@@ -46,6 +47,7 @@ export default function Crypto() {
     try {
       const { data } = await api.post('/v1/crypto/aes/encrypt', { key: key.replace(/\s+/g, ''), plaintext })
       setNonce(data.nonce); setCipher(data.cipher); dispatch(setError(''))
+      trackEvent('crypto_aes_encrypt')
     } catch { dispatch(setError('Encryption failed')) } finally { dispatch(setLoading(false)) }
   }
   const doDecrypt = async () => {
@@ -54,6 +56,7 @@ export default function Crypto() {
     try {
       const { data } = await api.post('/v1/crypto/aes/decrypt', { key: key.replace(/\s+/g, ''), nonce: nonce.replace(/\s+/g, ''), cipher: cipher.replace(/\s+/g, '') })
       setPlaintext(data.plaintext); dispatch(setError(''))
+      trackEvent('crypto_aes_decrypt')
     } catch { dispatch(setError('Decryption failed')) } finally { dispatch(setLoading(false)) }
   }
   const doCbcEncrypt = async () => {
@@ -62,6 +65,7 @@ export default function Crypto() {
     try {
       const { data } = await api.post('/v1/crypto/aes/cbc/encrypt', { key: key.replace(/\s+/g, ''), plaintext, iv: iv ? iv.replace(/\s+/g, '') : '' })
       setIv(data.iv); setCipher(data.cipher); dispatch(setError(''))
+      trackEvent('crypto_aes_cbc_encrypt')
     } catch { dispatch(setError('AES-CBC encryption failed')) } finally { dispatch(setLoading(false)) }
   }
   const doCbcDecrypt = async () => {
@@ -70,6 +74,7 @@ export default function Crypto() {
     try {
       const { data } = await api.post('/v1/crypto/aes/cbc/decrypt', { key: key.replace(/\s+/g, ''), iv: iv.replace(/\s+/g, ''), cipher: cipher.replace(/\s+/g, '') })
       setPlaintext(data.plaintext); dispatch(setError(''))
+      trackEvent('crypto_aes_cbc_decrypt')
     } catch { dispatch(setError('AES-CBC decryption failed')) } finally { dispatch(setLoading(false)) }
   }
   const doChaEncrypt = async () => {
@@ -78,6 +83,7 @@ export default function Crypto() {
     try {
       const { data } = await api.post('/v1/crypto/chacha/encrypt', { key: key.replace(/\s+/g, ''), plaintext, nonce: nonce ? nonce.replace(/\s+/g, '') : '' })
       setNonce(data.nonce); setCipher(data.cipher); dispatch(setError(''))
+      trackEvent('crypto_chacha_encrypt')
     } catch { dispatch(setError('ChaCha20-Poly1305 encryption failed')) } finally { dispatch(setLoading(false)) }
   }
   const doChaDecrypt = async () => {
@@ -86,6 +92,7 @@ export default function Crypto() {
     try {
       const { data } = await api.post('/v1/crypto/chacha/decrypt', { key: key.replace(/\s+/g, ''), nonce: nonce.replace(/\s+/g, ''), cipher: cipher.replace(/\s+/g, '') })
       setPlaintext(data.plaintext); dispatch(setError(''))
+      trackEvent('crypto_chacha_decrypt')
     } catch { dispatch(setError('ChaCha20-Poly1305 decryption failed')) } finally { dispatch(setLoading(false)) }
   }
   const doHmac = async () => {
@@ -94,6 +101,7 @@ export default function Crypto() {
     try {
       const { data } = await api.post('/v1/crypto/hmac/calc', { alg: hmacAlg, key: hmacKey.replace(/\s+/g, ''), data: hmacInput })
       setHmacOut(data.hex); dispatch(setError(''))
+      trackEvent('crypto_hmac_calc', { alg: hmacAlg })
     } catch { dispatch(setError('HMAC failed')) } finally { dispatch(setLoading(false)) }
   }
   const doPBKDF2 = async () => {
@@ -102,6 +110,7 @@ export default function Crypto() {
     try {
       const { data } = await api.post('/v1/crypto/pbkdf2/derive', { password: pbPassword, salt: pbSalt ? pbSalt.replace(/\s+/g, '') : '', iter: pbIter, dkLen: pbDkLen, alg: pbAlg })
       setPbOutSalt(data.salt); setPbOutKey(data.key); dispatch(setError(''))
+      trackEvent('crypto_pbkdf2_derive', { alg: pbAlg, iter: pbIter, dkLen: pbDkLen })
     } catch { dispatch(setError('PBKDF2 failed')) } finally { dispatch(setLoading(false)) }
   }
   const doBcryptHash = async () => {
@@ -110,6 +119,7 @@ export default function Crypto() {
     try {
       const { data } = await api.post('/v1/crypto/bcrypt/hash', { password: bcPassword, cost: bcCost })
       setBcHash(data.hash); dispatch(setError(''))
+      trackEvent('crypto_bcrypt_hash', { cost: bcCost })
     } catch { dispatch(setError('Bcrypt hash failed')) } finally { dispatch(setLoading(false)) }
   }
   const doBcryptVerify = async () => {
@@ -118,6 +128,7 @@ export default function Crypto() {
     try {
       const { data } = await api.post('/v1/crypto/bcrypt/verify', { password: bcPassword, hash: bcHash })
       setBcVerifyOk(!!data.ok); dispatch(setError(''))
+      trackEvent('crypto_bcrypt_verify')
     } catch { dispatch(setError('Bcrypt verify failed')) } finally { dispatch(setLoading(false)) }
   }
   const rsaGenerate = async () => {
@@ -125,6 +136,7 @@ export default function Crypto() {
     try {
       const { data } = await api.post('/v1/crypto/rsa/generate', { bits: 2048 })
       setPrivKey(data.private); setPubKey(data.public); dispatch(setError(''))
+      trackEvent('crypto_rsa_generate', { bits: 2048 })
     } catch { dispatch(setError('Key generation failed')) } finally { dispatch(setLoading(false)) }
   }
   const rsaEncrypt = async () => {
@@ -133,6 +145,7 @@ export default function Crypto() {
     try {
       const { data } = await api.post('/v1/crypto/rsa/encrypt', { key: pubKey.trim(), data: rsaPlain })
       setRsaCipher(data.cipher); dispatch(setError(''))
+      trackEvent('crypto_rsa_encrypt')
     } catch { dispatch(setError('RSA encryption failed')) } finally { dispatch(setLoading(false)) }
   }
   const rsaDecrypt = async () => {
@@ -141,6 +154,7 @@ export default function Crypto() {
     try {
       const { data } = await api.post('/v1/crypto/rsa/decrypt', { key: privKey.trim(), data: rsaCipher })
       setRsaPlain(data.plaintext); dispatch(setError(''))
+      trackEvent('crypto_rsa_decrypt')
     } catch { dispatch(setError('RSA decryption failed')) } finally { dispatch(setLoading(false)) }
   }
   const shaHash = async () => {
@@ -149,6 +163,7 @@ export default function Crypto() {
     try {
       const { data } = await api.post('/v1/crypto/sha/hash', { alg: shaAlg, data: shaInput })
       setShaOut(data.hex); dispatch(setError(''))
+      trackEvent('crypto_sha_hash', { alg: shaAlg })
     } catch { dispatch(setError('Hashing failed')) } finally { dispatch(setLoading(false)) }
   }
   return (

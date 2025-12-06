@@ -1,6 +1,7 @@
 import { Container, Typography, Grid, TextField, Button, Alert, Card, CardContent, FormControl, InputLabel, Select, MenuItem, Table, TableBody, TableCell, TableHead, TableRow, TableContainer, Paper, Box } from '@mui/material'
 import { Link as LinkIcon, Code as CodeIcon, AccessTime, FindInPage } from '@mui/icons-material'
 import BigText from '../components/BigText'
+import { trackEvent } from '../analytics'
 import { useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import api from '../api'
@@ -37,6 +38,7 @@ export default function Tools() {
       setBase64(data.base64)
       dispatch(setError(''))
       dispatch(openSnackbar({ message: 'Encoded successfully', severity: 'success' }))
+      trackEvent('tools_base64_encode')
     } catch { dispatch(setError('Encoding failed')) } finally { dispatch(setLoading(false)) }
   }
   const decode = async () => {
@@ -48,15 +50,16 @@ export default function Tools() {
       setText(data.text)
       dispatch(setError(''))
       dispatch(openSnackbar({ message: 'Decoded successfully', severity: 'success' }))
+      trackEvent('tools_base64_decode')
     } catch { dispatch(setError('Decoding failed')) } finally { dispatch(setLoading(false)) }
   }
   const urlDoEncode = () => {
     if (!urlText) { dispatch(setError('Please enter URL/text')); return }
-    try { setUrlEncoded(encodeURIComponent(urlText)); dispatch(setError('')); dispatch(openSnackbar({ message: 'URL encoded', severity: 'success' })) } catch { dispatch(setError('URL encode failed')) }
+    try { setUrlEncoded(encodeURIComponent(urlText)); dispatch(setError('')); dispatch(openSnackbar({ message: 'URL encoded', severity: 'success' })); trackEvent('tools_url_encode') } catch { dispatch(setError('URL encode failed')) }
   }
   const urlDoDecode = () => {
     if (!urlEncoded) { dispatch(setError('Please enter encoded text')); return }
-    try { setUrlText(decodeURIComponent(urlEncoded)); dispatch(setError('')); dispatch(openSnackbar({ message: 'URL decoded', severity: 'success' })) } catch { dispatch(setError('URL decode failed')) }
+    try { setUrlText(decodeURIComponent(urlEncoded)); dispatch(setError('')); dispatch(openSnackbar({ message: 'URL decoded', severity: 'success' })); trackEvent('tools_url_decode') } catch { dispatch(setError('URL decode failed')) }
   }
   const unicodeEscape = () => {
     if (!uniText) { dispatch(setError('Please enter text')); return }
@@ -75,6 +78,7 @@ export default function Tools() {
     setUniEscaped(out.join(''))
     dispatch(setError(''))
     dispatch(openSnackbar({ message: 'Escaped', severity: 'success' }))
+    trackEvent('tools_unicode_escape')
   }
   const unicodeUnescape = () => {
     if (!uniEscaped) { dispatch(setError('Please enter escaped text')); return }
@@ -83,6 +87,7 @@ export default function Tools() {
       setUniText(s)
       dispatch(setError(''))
       dispatch(openSnackbar({ message: 'Unescaped', severity: 'success' }))
+      trackEvent('tools_unicode_unescape')
     } catch { dispatch(setError('Unescape failed')) }
   }
   const regexTest = () => {
@@ -105,6 +110,7 @@ export default function Tools() {
       setReOutput(reReplace ? reInput.replace(rx, reReplace) : '')
       dispatch(setError(''))
       dispatch(openSnackbar({ message: 'Regex tested', severity: 'success' }))
+      trackEvent('tools_regex_test', { flags })
     } catch { dispatch(setError('Invalid pattern/flags')) }
   }
   const jsonPretty = () => {

@@ -7,6 +7,7 @@ import { useDispatch, useSelector } from 'react-redux'
 import { RootState } from '../store'
 import { setError, openSnackbar } from '../store'
 import { useState, useRef } from 'react'
+import { trackEvent } from '../analytics'
 
 export default function Json() {
   const dispatch = useDispatch()
@@ -132,14 +133,14 @@ export default function Json() {
     }
   }
   const doPretty = () => {
-    try { const obj = parseSafe(input); setOutput(JSON.stringify(obj, null, indent)); setTree(null); dispatch(setError('')); dispatch(openSnackbar({ message: 'Pretty done', severity: 'success' })) } catch (e: any) { dispatch(setError('Invalid JSON')) }
+    try { const obj = parseSafe(input); setOutput(JSON.stringify(obj, null, indent)); setTree(null); dispatch(setError('')); dispatch(openSnackbar({ message: 'Pretty done', severity: 'success' })); trackEvent('json_pretty', { indent }) } catch (e: any) { dispatch(setError('Invalid JSON')) }
   }
   const doMinify = () => {
-    try { const obj = parseSafe(input); setOutput(JSON.stringify(obj)); setTree(null); dispatch(setError('')); dispatch(openSnackbar({ message: 'Minify done', severity: 'success' })) } catch { dispatch(setError('Invalid JSON')) }
+    try { const obj = parseSafe(input); setOutput(JSON.stringify(obj)); setTree(null); dispatch(setError('')); dispatch(openSnackbar({ message: 'Minify done', severity: 'success' })); trackEvent('json_minify') } catch { dispatch(setError('Invalid JSON')) }
   }
   const doValidate = () => {
     const s = normalize(input)
-    try { JSON.parse(s); setTree(null); dispatch(setError('')); dispatch(openSnackbar({ message: 'Valid JSON', severity: 'success' })) }
+    try { JSON.parse(s); setTree(null); dispatch(setError('')); dispatch(openSnackbar({ message: 'Valid JSON', severity: 'success' })); trackEvent('json_validate') }
     catch (e: any) {
       const msg = String(e?.message || '')
       let pos = -1
@@ -158,16 +159,16 @@ export default function Json() {
     }
   }
   const doSort = () => {
-    try { const obj = parseSafe(input); const s = sortKeys(obj); setOutput(JSON.stringify(s, null, indent)); setTree(null); dispatch(setError('')); dispatch(openSnackbar({ message: 'Sort keys done', severity: 'success' })) } catch { dispatch(setError('Invalid JSON')) }
+    try { const obj = parseSafe(input); const s = sortKeys(obj); setOutput(JSON.stringify(s, null, indent)); setTree(null); dispatch(setError('')); dispatch(openSnackbar({ message: 'Sort keys done', severity: 'success' })); trackEvent('json_sort_keys') } catch { dispatch(setError('Invalid JSON')) }
   }
   const doExtract = () => {
-    try { const obj = parseSafe(input); const v = getByPath(obj, path); setOutput(JSON.stringify(v, null, indent)); setTree(null); dispatch(setError('')); dispatch(openSnackbar({ message: 'Extracted', severity: 'success' })) } catch { dispatch(setError('Invalid JSON or path')) }
+    try { const obj = parseSafe(input); const v = getByPath(obj, path); setOutput(JSON.stringify(v, null, indent)); setTree(null); dispatch(setError('')); dispatch(openSnackbar({ message: 'Extracted', severity: 'success' })); trackEvent('json_extract', { path }) } catch { dispatch(setError('Invalid JSON or path')) }
   }
   const toYaml = () => {
-    try { const obj = parseSafe(input); setOutput(yaml.dump(obj)); setTree(null); dispatch(setError('')); dispatch(openSnackbar({ message: 'JSON → YAML done', severity: 'success' })) } catch { dispatch(setError('Invalid JSON')) }
+    try { const obj = parseSafe(input); setOutput(yaml.dump(obj)); setTree(null); dispatch(setError('')); dispatch(openSnackbar({ message: 'JSON → YAML done', severity: 'success' })); trackEvent('json_to_yaml') } catch { dispatch(setError('Invalid JSON')) }
   }
   const fromYaml = () => {
-    try { const obj = yaml.load(normalize(input)) as any; setOutput(JSON.stringify(obj, null, indent)); setTree(null); dispatch(setError('')); dispatch(openSnackbar({ message: 'YAML → JSON done', severity: 'success' })) } catch (e: any) { dispatch(setError('YAML parse failed')) }
+    try { const obj = yaml.load(normalize(input)) as any; setOutput(JSON.stringify(obj, null, indent)); setTree(null); dispatch(setError('')); dispatch(openSnackbar({ message: 'YAML → JSON done', severity: 'success' })); trackEvent('json_from_yaml') } catch (e: any) { dispatch(setError('YAML parse failed')) }
   }
   const compare = () => {
     try {
@@ -201,10 +202,11 @@ export default function Json() {
       setTree(null)
       dispatch(setError(''))
       dispatch(openSnackbar({ message: 'Compare done', severity: 'success' }))
+      trackEvent('json_compare')
     } catch { dispatch(setError('Invalid JSON inputs')) }
   }
   const showTree = () => {
-    try { const obj = parseSafe(input); setTree(obj); dispatch(setError('')); dispatch(openSnackbar({ message: 'Tree view updated', severity: 'success' })) } catch { dispatch(setError('Invalid JSON')) }
+    try { const obj = parseSafe(input); setTree(obj); dispatch(setError('')); dispatch(openSnackbar({ message: 'Tree view updated', severity: 'success' })); trackEvent('json_show_tree') } catch { dispatch(setError('Invalid JSON')) }
   }
   const hideTree = () => { setTree(null) }
   return (

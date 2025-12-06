@@ -5,6 +5,7 @@ import { setError, openSnackbar } from '../store'
 import BigText from '../components/BigText'
 import CMerge from '../components/CMerge'
 import { useState } from 'react'
+import { trackEvent } from '../analytics'
 
 export default function TextTools() {
   const dispatch = useDispatch()
@@ -86,6 +87,7 @@ export default function TextTools() {
     setDiffRows(merged)
     setUnified(u.join('\n'))
     dispatch(openSnackbar({ message: 'Diff computed', severity: 'success' }))
+    trackEvent('text_diff_compare', { mode: diffMode, ignoreSpace: diffIgnoreSpace, ignoreCase: diffIgnoreCase })
   }
   const apply = () => {
     try {
@@ -124,10 +126,11 @@ export default function TextTools() {
           s = s.replace(rx, rep)
         }
       }
-      setOutput(s)
-      dispatch(setError(''))
-      dispatch(openSnackbar({ message: 'Applied', severity: 'success' }))
-    } catch { dispatch(setError('Apply failed')) }
+    setOutput(s)
+    dispatch(setError(''))
+    dispatch(openSnackbar({ message: 'Applied', severity: 'success' }))
+    trackEvent('text_replace_apply', { preset: preset || 'custom', regex: useRegex })
+  } catch { dispatch(setError('Apply failed')) }
   }
   return (
     <Container sx={{ mt: 4 }}>

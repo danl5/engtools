@@ -51,6 +51,8 @@ services:
       - DISABLE_TELEMETRY=1
     ports:
       - "3000:3000"
+    volumes:
+      - ./umami.env:/app/.env:ro
     depends_on:
       umami-db:
         condition: service_healthy

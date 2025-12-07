@@ -7,6 +7,9 @@ export const trackPageView = (url: string) => {
     const u: any = (window as any).umami
     if (u && typeof u.track === 'function') {
       u.track((props: any) => ({ ...props, url, referrer: ref }))
+    } else {
+      const body = JSON.stringify({ type: 'pageview', payload: { website: SITE_ID, url, referrer: ref } })
+      fetch('/api/collect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: true }).catch(() => {})
     }
   } catch {}
 }
@@ -18,6 +21,9 @@ export const trackEvent = (name: string, props?: Record<string, any>) => {
     if (u && typeof u.track === 'function') {
       if (props) u.track(name, props)
       else u.track(name)
+    } else {
+      const body = JSON.stringify({ type: 'event', payload: { website: SITE_ID, url, name, data: props || {} } })
+      fetch('/api/collect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: true }).catch(() => {})
     }
   } catch {}
 }

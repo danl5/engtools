@@ -13,7 +13,22 @@ export default defineConfig(({ mode }) => {
           target,
           changeOrigin: true,
           secure: false,
-        }
+        },
+        '/script.js': {
+          target: 'http://localhost:3000',
+          changeOrigin: true,
+          secure: false,
+        },
+        '/api/send': {
+          target: 'http://localhost:3000',
+          changeOrigin: true,
+          secure: false,
+        },
+        '/api/collect': {
+          target: 'http://localhost:3000',
+          changeOrigin: true,
+          secure: false,
+        },
       }
     }
   }

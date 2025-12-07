@@ -51,9 +51,11 @@ services:
       - DISABLE_TELEMETRY=1
       - REDIS_URL=""
       - CLICKHOUSE_URL=""
+    ports:
+      - "3000:3000"
     depends_on:
       umami-db:
         condition: service_healthy
-    # No healthcheck to avoid dependency on extra tools; frontend starts once umami is started
+    
 volumes:
   umami-db:

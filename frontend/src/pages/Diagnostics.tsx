@@ -26,7 +26,7 @@ export default function Diagnostics() {
   const [pid, setPid] = useState('')
   const [iface, setIface] = useState('')
   const [image, setImage] = useState('')
-  const [parserType, setParserType] = useState<'curl'|'mtr'|'openssl'|'iostat'|'iptables'>('curl')
+  const [parserType, setParserType] = useState<'iptables'>('iptables')
   const [parserInput, setParserInput] = useState('')
   const [parsedHeaders, setParsedHeaders] = useState<string[]>([])
   const [parsedRows, setParsedRows] = useState<any[]>([])
@@ -219,123 +219,7 @@ export default function Diagnostics() {
   }
   const parseOutput = () => {
     try {
-      if (parserType === 'curl') {
-        const text = sanitize(parserInput)
-        const lines = text.split(/\n/)
-        let status = '', finalUrl = '', total = '', http = '', server = '', date = ''
-        for (const ln of lines) {
-          if (/^<\s+HTTP\//.test(ln)) { const m1 = ln.match(/HTTP\/([0-9.]+)/); if (m1) http = m1[1]; const m2 = ln.match(/HTTP\/[0-9.]+\s+(\d+)/); if (m2) status = m2[1] }
-          if(/^\*\s+Connected to\s+/.test(ln)) { const m = ln.match(/Connected to\s+([^\s]+)/); if (m) finalUrl = m[1] }
-          if (/^\d+\.\d+$/.test(ln.trim())) { total = ln.trim() }
-          if (/^<\s+Server:/i.test(ln)) { const m = ln.match(/Server:\s*(.+)/i); if (m) server = m[1] }
-          if (/^<\s+Date:/i.test(ln)) { const m = ln.match(/Date:\s*(.+)/i); if (m) date = m[1] }
-        }
-        setParsedHeaders(['http','status','endpoint','server','date','total_time'])
-        setParsedRows([{ http, status, endpoint: finalUrl, server, date, total_time: total }])
-      } else if (parserType === 'mtr') {
-        const text = sanitize(parserInput)
-        const lines = text.split(/\n/)
-        let headerIdx = -1
-        for (let i = 0; i < lines.length; i++) {
-          if (/Loss%/i.test(lines[i]) && /Avg/i.test(lines[i])) { headerIdx = i; break }
-        }
-        if (headerIdx === -1) {
-          setParsedHeaders(['raw']); setParsedRows([{ raw: text.slice(0, 2000) }])
-        } else {
-          const hdrTokens = lines[headerIdx].trim().split(/\s+/)
-          const lower = hdrTokens.map(h=>h.toLowerCase())
-          const find = (name: string) => lower.indexOf(name.toLowerCase())
-          const idxMap: Record<string, number> = {
-            loss: find('loss%'),
-            snt: find('snt'),
-            last: find('last'),
-            avg: find('avg'),
-            best: find('best'),
-            wrst: find('wrst'),
-            stdev: find('stdev')
-          }
-          const presentHeaders = ['hop','host', ...Object.keys(idxMap).filter(k=>idxMap[k] !== -1)]
-          const rows: any[] = []
-          for (let i = headerIdx + 1; i < lines.length; i++) {
-            const ln = lines[i]
-            if (!ln.trim()) continue
-            const parts = ln.trim().split(/\s+/)
-            if (!/^\d+/.test(parts[0])) continue
-            const row: any = { hop: parts[0], host: parts[1] }
-            for (const k of Object.keys(idxMap)) {
-              const j = idxMap[k]
-              if (j !== -1 && j < parts.length) row[k] = parts[j]
-            }
-            rows.push(row)
-          }
-          setParsedHeaders(presentHeaders)
-          setParsedRows(rows)
-        }
-      } else if (parserType === 'openssl') {
-        const text = sanitize(parserInput)
-        const lines = text.split(/\n/)
-        let proto = '', cipher = '', notAfter = '', notBefore = '', subject = '', issuer = ''
-        for (const ln of lines) {
-          if (/^\s*Protocol\s*:/.test(ln)) { const m = ln.match(/Protocol\s*:\s*(.+)/); if (m) proto = m[1] }
-          if (/^\s*Cipher\s*:/.test(ln)) { const m = ln.match(/Cipher\s*:\s*(.+)/); if (m) cipher = m[1] }
-          if (/^\s*notAfter=/.test(ln)) { const m = ln.match(/notAfter=(.+)/); if (m) notAfter = m[1] }
-          if (/^\s*notBefore=/.test(ln)) { const m = ln.match(/notBefore=(.+)/); if (m) notBefore = m[1] }
-          if (/^\s*subject=/.test(ln)) { const m = ln.match(/subject=(.+)/); if (m) subject = m[1] }
-          if (/^\s*issuer=/.test(ln)) { const m = ln.match(/issuer=(.+)/); if (m) issuer = m[1] }
-        }
-        setParsedHeaders(['protocol','cipher','subject','issuer','not_before','not_after'])
-        setParsedRows([{ protocol: proto, cipher, subject, issuer, not_before: notBefore, not_after: notAfter }])
-      } else if (parserType === 'iostat') {
-        const text = sanitize(parserInput)
-        const lines = text.split(/\n/)
-        let headerIdx = -1
-        for (let i = 0; i < lines.length; i++) {
-          if (/^\s*Device\b/i.test(lines[i]) && /util\b/i.test(lines[i])) headerIdx = i
-        }
-        if (headerIdx === -1) {
-          setParsedHeaders(['raw']); setParsedRows([{ raw: text.slice(0, 2000) }])
-        } else {
-          const hdrTokens = lines[headerIdx].trim().split(/\s+/)
-          const findIdx = (names: string[]) => {
-            const lower = hdrTokens.map(h=>h.toLowerCase())
-            for (const name of names) {
-              const j = lower.indexOf(name.toLowerCase())
-              if (j !== -1) return j
-            }
-            return -1
-          }
-          const idxMap: Record<string, number> = {
-            device: findIdx(['Device']),
-            r_s: findIdx(['r/s','rs']),
-            w_s: findIdx(['w/s','ws']),
-            rkB_s: findIdx(['rkB/s','rKB/s','r_kB/s']),
-            wkB_s: findIdx(['wkB/s','wKB/s','w_kB/s']),
-            await: findIdx(['await']),
-            util: findIdx(['%util','util%','util'])
-          }
-          const presentHeaders = Object.keys(idxMap).filter(k => idxMap[k] !== -1)
-          const rows: any[] = []
-          for (let i = headerIdx + 1; i < lines.length; i++) {
-            const ln = lines[i]
-            if (!ln.trim() || /avg-cpu:/i.test(ln) || /^\s*Linux/i.test(ln)) continue
-            const parts = ln.trim().split(/\s+/)
-            const row: any = {}
-            // Skip non-data lines
-            if (parts.length < 2) continue
-            for (const k of presentHeaders) {
-              const j = idxMap[k]
-              if (j >= 0 && j < parts.length) row[k] = parts[j]
-            }
-            if (row.device) rows.push(row)
-          }
-          if (rows.length === 0) {
-            setParsedHeaders(['raw']); setParsedRows([{ raw: text.slice(0, 2000) }])
-          } else {
-            setParsedHeaders(presentHeaders)
-            setParsedRows(rows)
-          }
-        }
-      } else if (parserType === 'iptables') {
+      {
         const text = sanitize(parserInput)
         const lines = text.split(/\n/)
         const svcMap: Record<string, { name:string; clusterIP:string; port:string; chain:string; nodePort?:string; endpoints:string[] }> = {}
@@ -386,7 +270,7 @@ export default function Diagnostics() {
       }
       dispatch(setError(''))
       dispatch(openSnackbar({ message: 'Parsed output', severity: 'success' }))
-      trackEvent('diagnostics_parse', { parser: parserType })
+      trackEvent('diagnostics_parse', { parser: 'iptables' })
     } catch {
       setParsedHeaders(['raw']); setParsedRows([{ raw: sanitize(parserInput).slice(0, 2000) }]); dispatch(setError('Parse failed'))
     }
@@ -491,115 +375,103 @@ export default function Diagnostics() {
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} md={12}>
-          <Card sx={{ bgcolor: 'rgba(255,255,255,0.06)' }}>
-            <CardContent sx={{ p:3 }}>
-              <Typography variant="h6">Result Parsers</Typography>
-              <Grid container spacing={2} sx={{ mt:1 }}>
-                <Grid item xs={12} md={3}>
-                  <FormControl fullWidth>
-                    <InputLabel id="parser">Parser</InputLabel>
-                    <Select labelId="parser" label="Parser" value={parserType} onChange={e=>setParserType(e.target.value as any)}>
-                      <MenuItem value="curl">curl -v / headers</MenuItem>
-                      <MenuItem value="mtr">mtr/traceroute</MenuItem>
-                      <MenuItem value="openssl">openssl s_client</MenuItem>
-                      <MenuItem value="iostat">iostat -x</MenuItem>
-                      <MenuItem value="iptables">k8s iptables (nat)</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Grid>
-              </Grid>
-              <BigText label="Paste output" value={parserInput} onChange={val=>{ setParserInput(val) }} onExecute={parseOutput} />
-              <Box sx={{ mt:1 }}>
-                <Grid container spacing={2} alignItems="center">
-                  <Grid item>
-                    <Button variant="contained" onClick={parseOutput}>Parse</Button>
+        {(category==='k8s' && scenario==='kubeproxy_mode') && (
+          <Grid item xs={12} md={12}>
+            <Card sx={{ bgcolor: 'rgba(255,255,255,0.06)' }}>
+              <CardContent sx={{ p:3 }}>
+                <Typography variant="h6">kube-proxy: iptables (nat) Parser</Typography>
+                <Typography variant="body2" sx={{ opacity:.8, mb:1 }}>Paste output of <code>iptables-save -t nat</code> to build service/endpoint relations. Use commands above to collect data.</Typography>
+                <BigText label="iptables-save -t nat output" value={parserInput} onChange={val=>{ setParserInput(val) }} onExecute={parseOutput} />
+                <Box sx={{ mt:1 }}>
+                  <Grid container spacing={2} alignItems="center">
+                    <Grid item>
+                      <Button variant="contained" onClick={parseOutput}>Parse</Button>
+                    </Grid>
+                    <Grid item>
+                      <ToggleButtonGroup size="small" value={parserView} exclusive onChange={(_,v)=>{ if (v) setParserView(v) }}>
+                        <ToggleButton value="raw">Raw</ToggleButton>
+                        <ToggleButton value="parsed">Parsed</ToggleButton>
+                      </ToggleButtonGroup>
+                    </Grid>
                   </Grid>
-                  <Grid item>
-                    <ToggleButtonGroup size="small" value={parserView} exclusive onChange={(_,v)=>{ if (v) setParserView(v) }}>
-                      <ToggleButton value="raw">Raw</ToggleButton>
-                      <ToggleButton value="parsed">Parsed</ToggleButton>
-                    </ToggleButtonGroup>
-                  </Grid>
-                </Grid>
-              </Box>
-              {parserView==='parsed' && parsedRows.length>0 && (
-                <TableContainer component={Paper} sx={{ mt:2, background:'rgba(255,255,255,0.06)' }}>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        {parsedHeaders.map((h, idx)=>(<TableCell key={idx}>{h}</TableCell>))}
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {parsedRows.map((row, idx)=>(
-                        <TableRow key={idx}>
-                          {parsedHeaders.map((h, jdx)=>(<TableCell key={jdx} sx={{ fontFamily:'monospace' }}>{row[h]}</TableCell>))}
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              )}
-              {parserView==='parsed' && (parserType==='iptables') && (svcRows.length>0 || epRows.length>0) && (
-                <Box>
+                </Box>
+                {parserView==='parsed' && parsedRows.length>0 && (
                   <TableContainer component={Paper} sx={{ mt:2, background:'rgba(255,255,255,0.06)' }}>
                     <Table size="small">
                       <TableHead>
                         <TableRow>
-                          <TableCell>Namespace/Service</TableCell>
-                          <TableCell>ClusterIP</TableCell>
-                          <TableCell>Port</TableCell>
-                          <TableCell>NodePort</TableCell>
-                          <TableCell>Chain</TableCell>
-                          <TableCell>Endpoints</TableCell>
+                          {parsedHeaders.map((h, idx)=>(<TableCell key={idx}>{h}</TableCell>))}
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {svcRows.map((s, idx)=> (
+                        {parsedRows.map((row, idx)=>(
                           <TableRow key={idx}>
-                            <TableCell sx={{ fontFamily:'monospace' }}>{s.name}</TableCell>
-                            <TableCell sx={{ fontFamily:'monospace' }}>{s.clusterIP || '-'}</TableCell>
-                            <TableCell sx={{ fontFamily:'monospace' }}>{s.port || '-'}</TableCell>
-                            <TableCell sx={{ fontFamily:'monospace' }}>{s.nodePort || '-'}</TableCell>
-                            <TableCell sx={{ fontFamily:'monospace' }}>{s.chain}</TableCell>
-                            <TableCell sx={{ fontFamily:'monospace' }}>{s.endpoints.length}</TableCell>
+                            {parsedHeaders.map((h, jdx)=>(<TableCell key={jdx} sx={{ fontFamily:'monospace' }}>{row[h]}</TableCell>))}
                           </TableRow>
                         ))}
                       </TableBody>
                     </Table>
                   </TableContainer>
-                  <TableContainer component={Paper} sx={{ mt:2, background:'rgba(255,255,255,0.06)' }}>
-                    <Table size="small">
-                      <TableHead>
-                        <TableRow>
-                          <TableCell>Service Chain</TableCell>
-                          <TableCell>Endpoint Chain</TableCell>
-                          <TableCell>DNAT → IP:Port</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {epRows.map((e, idx)=> (
-                          <TableRow key={idx}>
-                            <TableCell sx={{ fontFamily:'monospace' }}>{e.svcChain}</TableCell>
-                            <TableCell sx={{ fontFamily:'monospace' }}>{e.sepChain}</TableCell>
-                            <TableCell sx={{ fontFamily:'monospace' }}>{e.to || '-'}</TableCell>
+                )}
+                {parserView==='parsed' && (svcRows.length>0 || epRows.length>0) && (
+                  <Box>
+                    <TableContainer component={Paper} sx={{ mt:2, background:'rgba(255,255,255,0.06)' }}>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Namespace/Service</TableCell>
+                            <TableCell>ClusterIP</TableCell>
+                            <TableCell>Port</TableCell>
+                            <TableCell>NodePort</TableCell>
+                            <TableCell>Chain</TableCell>
+                            <TableCell>Endpoints</TableCell>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                </Box>
-              )}
-              {parserView==='raw' && (
-                <Box sx={{ mt:2, p:2, borderRadius:1, border:'1px solid rgba(255,255,255,0.12)', background:'rgba(255,255,255,0.04)', fontFamily:'monospace', whiteSpace:'pre-wrap' }}>
-                  {sanitize(parserInput)}
-                </Box>
-              )}
-              
-            </CardContent>
-          </Card>
-        </Grid>
+                        </TableHead>
+                        <TableBody>
+                          {svcRows.map((s, idx)=> (
+                            <TableRow key={idx}>
+                              <TableCell sx={{ fontFamily:'monospace' }}>{s.name}</TableCell>
+                              <TableCell sx={{ fontFamily:'monospace' }}>{s.clusterIP || '-'}</TableCell>
+                              <TableCell sx={{ fontFamily:'monospace' }}>{s.port || '-'}</TableCell>
+                              <TableCell sx={{ fontFamily:'monospace' }}>{s.nodePort || '-'}</TableCell>
+                              <TableCell sx={{ fontFamily:'monospace' }}>{s.chain}</TableCell>
+                              <TableCell sx={{ fontFamily:'monospace' }}>{s.endpoints.length}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                    <TableContainer component={Paper} sx={{ mt:2, background:'rgba(255,255,255,0.06)' }}>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Service Chain</TableCell>
+                            <TableCell>Endpoint Chain</TableCell>
+                            <TableCell>DNAT → IP:Port</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {epRows.map((e, idx)=> (
+                            <TableRow key={idx}>
+                              <TableCell sx={{ fontFamily:'monospace' }}>{e.svcChain}</TableCell>
+                              <TableCell sx={{ fontFamily:'monospace' }}>{e.sepChain}</TableCell>
+                              <TableCell sx={{ fontFamily:'monospace' }}>{e.to || '-'}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </Box>
+                )}
+                {parserView==='raw' && (
+                  <Box sx={{ mt:2, p:2, borderRadius:1, border:'1px solid rgba(255,255,255,0.12)', background:'rgba(255,255,255,0.04)', fontFamily:'monospace', whiteSpace:'pre-wrap' }}>
+                    {sanitize(parserInput)}
+                  </Box>
+                )}
+              </CardContent>
+            </Card>
+          </Grid>
+        )}
         
       </Grid>
     </Container>

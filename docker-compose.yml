@@ -57,7 +57,7 @@ services:
       umami-db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:3000/"]
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://127.0.0.1:3000/',res=>process.exit(res.statusCode===200?0:1)).on('error',()=>process.exit(1))\""]
       interval: 10s
       timeout: 5s
       retries: 5

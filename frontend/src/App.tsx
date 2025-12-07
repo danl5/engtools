@@ -90,7 +90,7 @@ const theme = createTheme({
 export default function App() {
   const [tab, setTab] = useState<'tools' | 'diagnostics' | 'json' | 'text' | 'ipdom' | 'crypto' | 'cert'>('tools')
   const snackbar = useSelector((s: RootState) => s.ui.snackbar)
-  useEffect(() => { trackPageView(tab) }, [])
+  useEffect(() => { trackPageView(`/tab/${tab}`) }, [])
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
@@ -107,7 +107,7 @@ export default function App() {
         </Box>
         <Loader />
         <Container maxWidth="xl" sx={{ mt: 4, pb: 6, flexGrow: 1 }}>
-          <Tabs value={tab} onChange={(_, v) => { setTab(v); trackPageView(v) }} sx={{ mb: 2 }} variant="scrollable" scrollButtons="auto" allowScrollButtonsMobile>
+          <Tabs value={tab} onChange={(_, v) => { setTab(v); trackPageView(`/tab/${v}`) }} sx={{ mb: 2 }} variant="scrollable" scrollButtons="auto" allowScrollButtonsMobile>
             <Tab label="Tools" value="tools" />
             <Tab label="JSON" value="json" />
             <Tab label="Text" value="text" />

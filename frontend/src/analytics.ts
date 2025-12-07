@@ -3,7 +3,7 @@ const SITE_ID = (import.meta as any).env?.VITE_ANALYTICS_SITE_ID || ''
 const enabled = () => !!COLLECT && !!SITE_ID && localStorage.getItem('analytics_optout') !== '1'
 const send = (payload: any) => {
   if (!enabled()) return
-  const body = JSON.stringify(payload)
+  const body = JSON.stringify({ payload })
   if (navigator.sendBeacon) {
     const blob = new Blob([body], { type: 'application/json' })
     navigator.sendBeacon(COLLECT, blob)
@@ -11,14 +11,16 @@ const send = (payload: any) => {
   }
   fetch(COLLECT, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: true }).catch(() => {})
 }
-export const trackPageView = (page: string) => {
+export const trackPageView = (url: string) => {
   try {
-    send({ type: 'page_view', siteId: SITE_ID, page, url: typeof window !== 'undefined' ? window.location.href : '', referrer: typeof document !== 'undefined' ? document.referrer : '', ts: Date.now() })
+    const ref = typeof document !== 'undefined' ? document.referrer : ''
+    send({ type: 'pageview', website: SITE_ID, url, referrer: ref })
   } catch {}
 }
 export const trackEvent = (name: string, props?: Record<string, any>) => {
   try {
-    send({ type: 'event', siteId: SITE_ID, name, props: props || {}, url: typeof window !== 'undefined' ? window.location.href : '', ts: Date.now() })
+    const url = typeof window !== 'undefined' ? window.location.pathname + window.location.search : ''
+    send({ type: 'event', website: SITE_ID, url, name, data: props || {} })
   } catch {}
 }
 export const setAnalyticsOptOut = (optout: boolean) => {

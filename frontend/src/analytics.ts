@@ -1,4 +1,4 @@
-const SITE_ID = (import.meta as any).env?.VITE_ANALYTICS_SITE_ID || ''
+const SITE_ID = (import.meta as any).env?.VITE_ANALYTICS_SITE_ID || (typeof localStorage !== 'undefined' ? (localStorage.getItem('umami_site_id') || '') : '')
 const enabled = () => !!SITE_ID && localStorage.getItem('analytics_optout') !== '1'
 export const trackPageView = (url: string) => {
   try {

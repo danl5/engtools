@@ -90,7 +90,19 @@ const theme = createTheme({
 export default function App() {
   const [tab, setTab] = useState<'tools' | 'diagnostics' | 'json' | 'text' | 'ipdom' | 'crypto' | 'cert'>('tools')
   const snackbar = useSelector((s: RootState) => s.ui.snackbar)
-  useEffect(() => { trackPageView(`/tab/${tab}`) }, [])
+  useEffect(() => {
+    const siteId = (import.meta as any).env?.VITE_ANALYTICS_SITE_ID
+    if (siteId) {
+      const s = document.createElement('script')
+      s.src = '/script.js'
+      s.async = true
+      s.defer = true
+      s.setAttribute('data-website-id', siteId)
+      s.setAttribute('data-auto-track', 'false')
+      document.head.appendChild(s)
+      s.onload = () => { trackPageView(`/tab/${tab}`) }
+    }
+  }, [])
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />

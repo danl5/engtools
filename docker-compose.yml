@@ -49,8 +49,6 @@ services:
       - APP_SECRET=${UMAMI_APP_SECRET:-change-this-secret}
       - HASH_SALT=${UMAMI_HASH_SALT:-change-this-salt}
       - DISABLE_TELEMETRY=1
-      - REDIS_URL=""
-      - CLICKHOUSE_URL=""
     ports:
       - "3000:3000"
     depends_on:

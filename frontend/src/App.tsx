@@ -136,6 +136,11 @@ export default function App() {
             <Link href="https://beian.miit.gov.cn/" target="_blank" rel="noopener" underline="hover" color="inherit">
               粤ICP备2025502409号-1
             </Link>
+            {' · '}
+            <img src="/beian.png" alt="公安备案" width={16} height={16} style={{ verticalAlign: 'text-bottom', marginRight: 4, marginLeft: 6 }} />
+            <Link href="https://beian.mps.gov.cn/#/query/webSearch?code=44030002009057" target="_blank" rel="noreferrer" underline="hover" color="inherit">
+              粤公网安备44030002009057号
+            </Link>
           </Typography>
         </Box>
         <Snackbar open={snackbar.open} autoHideDuration={3000}>

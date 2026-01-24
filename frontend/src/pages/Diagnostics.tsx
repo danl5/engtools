@@ -26,7 +26,7 @@ export default function Diagnostics() {
   const [pid, setPid] = useState('')
   const [iface, setIface] = useState('')
   const [image, setImage] = useState('')
-  const [parserType, setParserType] = useState<'iptables'>('iptables')
+  const [parserType, setParserType] = useState<'iptables'|'ipset'|'ipvs'>('iptables')
   const [parserInput, setParserInput] = useState('')
   const [parsedHeaders, setParsedHeaders] = useState<string[]>([])
   const [parsedRows, setParsedRows] = useState<any[]>([])
@@ -184,7 +184,12 @@ export default function Diagnostics() {
         add(`kubectl exec -n <ns> -it <pod> -- nslookup <svc>`, 'In-cluster DNS resolution')
         add(`kubectl -n kube-system logs deploy/coredns`, 'CoreDNS logs')
       } else if (scenario==='kubeproxy_mode') {
+        add(`kubectl -n kube-system get ds kube-proxy -o yaml | grep -i "mode:"`, 'Detect kube-proxy mode')
         add(`iptables-save -t nat`, 'kube-proxy iptables (nat)')
+        add(`ipset list KUBE-CLUSTER-IP`, 'ipset cluster IP set')
+        add(`ipset list KUBE-LOAD-BALANCER`, 'ipset load balancer set')
+        add(`ipset list KUBE-LOOP-BACK`, 'ipset loop back set')
+        add(`ipvsadm -Ln`, 'IPVS services and destinations')
         add(`kubectl -n kube-system get ds kube-proxy -o yaml`, 'kube-proxy config')
       } else if (scenario==='cert_expiry') {
         add(`kubeadm certs check-expiration`, 'Certificates expiry')
@@ -219,7 +224,7 @@ export default function Diagnostics() {
   }
   const parseOutput = () => {
     try {
-      {
+      if (parserType === 'iptables') {
         const text = sanitize(parserInput)
         const lines = text.split(/\n/)
         const svcMap: Record<string, { name:string; clusterIP:string; port:string; chain:string; nodePort?:string; endpoints:string[] }> = {}
@@ -267,10 +272,46 @@ export default function Diagnostics() {
         setEpRows(epRowsOut)
         setParsedHeaders([])
         setParsedRows([])
+      } else if (parserType === 'ipset') {
+        const text = sanitize(parserInput)
+        const lines = text.split(/\n/)
+        let currentSet = ''
+        const rows: any[] = []
+        for (const ln of lines) {
+          const mName = ln.match(/^Name:\s*(.+)$/i)
+          if (mName) { currentSet = mName[1].trim(); continue }
+          const mMember = ln.match(/^\s*([0-9a-f:.]+)(?:,\s*(tcp|udp):?(\d+))?/i)
+          if (mMember && currentSet) {
+            const ip = mMember[1]
+            const proto = mMember[2] || ''
+            const port = mMember[3] || ''
+            rows.push({ set: currentSet, ip, proto, port })
+          }
+        }
+        setParsedHeaders(['set','ip','proto','port'])
+        setParsedRows(rows)
+      } else if (parserType === 'ipvs') {
+        const text = sanitize(parserInput)
+        const lines = text.split(/\n/)
+        const services: Array<{proto:string, vip:string, port:string, sched:string}> = []
+        const dests: Array<{vip:string, vport:string, rip:string, rport:string, fwd:string}> = []
+        let cur: {vip:string, vport:string} | null = null
+        for (const ln of lines) {
+          const ms = ln.match(/^(TCP|UDP)\s+([0-9a-f:.]+):(\d+)\s+(\S+)/i)
+          if (ms) { services.push({ proto: ms[1], vip: ms[2], port: ms[3], sched: ms[4] }); cur = { vip: ms[2], vport: ms[3] }; continue }
+          const md = ln.match(/^\s*->\s*([0-9a-f:.]+):(\d+)\s+(\S+)/i)
+          if (md && cur) { dests.push({ vip: cur.vip, vport: cur.vport, rip: md[1], rport: md[2], fwd: md[3] }) }
+        }
+        const svcRowsOut = services.map(s => ({ proto: s.proto, vip: s.vip, port: s.port, sched: s.sched }))
+        const epRowsOut = dests.map(d => ({ vip: `${d.vip}:${d.vport}`, dest: `${d.rip}:${d.rport}`, fwd: d.fwd }))
+        setParsedHeaders(['vip','dest','fwd'])
+        setParsedRows(epRowsOut)
+        setSvcRows(svcRows.map(x=>x))
+        setEpRows(epRows.map(x=>x))
       }
       dispatch(setError(''))
       dispatch(openSnackbar({ message: 'Parsed output', severity: 'success' }))
-      trackEvent('diagnostics_parse', { parser: 'iptables' })
+      trackEvent('diagnostics_parse', { parser: parserType })
     } catch {
       setParsedHeaders(['raw']); setParsedRows([{ raw: sanitize(parserInput).slice(0, 2000) }]); dispatch(setError('Parse failed'))
     }
@@ -381,6 +422,18 @@ export default function Diagnostics() {
               <CardContent sx={{ p:3 }}>
                 <Typography variant="h6">kube-proxy: iptables (nat) Parser</Typography>
                 <Typography variant="body2" sx={{ opacity:.8, mb:1 }}>Paste output of <code>iptables-save -t nat</code> to build service/endpoint relations. Use commands above to collect data.</Typography>
+                <Grid container spacing={2} sx={{ mb:1 }}>
+                  <Grid item xs={12} md={3}>
+                    <FormControl fullWidth>
+                      <InputLabel id="parser">Parser</InputLabel>
+                      <Select labelId="parser" label="Parser" value={parserType} onChange={e=>setParserType(e.target.value as any)}>
+                        <MenuItem value="iptables">iptables (nat)</MenuItem>
+                        <MenuItem value="ipset">ipset</MenuItem>
+                        <MenuItem value="ipvs">ipvsadm</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                </Grid>
                 <BigText label="iptables-save -t nat output" value={parserInput} onChange={val=>{ setParserInput(val) }} onExecute={parseOutput} />
                 <Box sx={{ mt:1 }}>
                   <Grid container spacing={2} alignItems="center">

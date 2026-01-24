@@ -1,4 +1,4 @@
-import { AppBar, Toolbar, Typography, Container, Button, Box, Tabs, Tab, Snackbar, Alert, CssBaseline, Link } from '@mui/material'
+import { AppBar, Toolbar, Typography, Container, Box, Tabs, Tab, Snackbar, Alert, CssBaseline, Link } from '@mui/material'
 import { useState, useEffect } from 'react'
 import { ThemeProvider, createTheme } from '@mui/material/styles'
 import Loader from './components/Loader'
@@ -133,6 +133,10 @@ export default function App() {
         <Box sx={{ mt: 'auto', py: 2, textAlign: 'center' }}>
           <Typography variant="body2" sx={{ opacity: 0.85 }}>
             © {new Date().getFullYear()} Dan ·{' '}
+            <Link href="https://github.com/danl5/engtools/issues" target="_blank" rel="noopener" underline="hover" color="inherit">
+              反馈
+            </Link>
+            {' · '}
             <Link href="https://beian.miit.gov.cn/" target="_blank" rel="noopener" underline="hover" color="inherit">
               粤ICP备2025502409号-1
             </Link>
